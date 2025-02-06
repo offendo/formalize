@@ -5,7 +5,16 @@ description = "Add your description here"
 authors = [
     { name = "Nilay Patel", email = "nilaypatel2@gmail.com" }
 ]
-dependencies = []
+dependencies = [
+    "datasets>=3.2.0",
+    "pandas>=2.2.3",
+    "scikit-learn>=1.6.1",
+    "transformers>=4.48.2",
+    "openai>=1.61.1",
+    "trl>=0.14.0",
+    "peft>=0.14.0",
+    "vllm>=0.7.2",
+]
 readme = "README.md"
 requires-python = ">= 3.8"
 
