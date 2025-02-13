@@ -1,21 +1,13 @@
 import pandas as pd
-
+import sys
+from pathlib import Path
 from argparse import ArgumentParser
 from openai import OpenAI
-from datasets import load_dataset, load_from_disk, Dataset
+from datasets import load_from_disk, Dataset
 
-from src.formalize.datasets import MathAtlas
+from formalize.mathatlas import MathAtlas
 
-# client = OpenAI( base_url="http://localhost:8000/v1", api_key="")
-# 
-# completion = client.chat.completions.create(
-#   model="NousResearch/Meta-Llama-3-8B-Instruct",
-#   messages=[
-#     {"role": "user", "content": "Hello!"}
-#   ]
-# )
-
-# print(completion.choices[0].message)
+SYSTEM = "You are an expert mathematician who is fluent in Lean 4."
 
 PROMPT = """Given a mathematical {tag}, formalize it into Lean 4.
 
@@ -52,31 +44,74 @@ def find_refs(row: dict, database: MathAtlas):
 def find_names(row: dict):
     return [idn for idn, tag in zip(row['text'], row['tag']) if tag == 'name']
 
-def format_prompt(example: dict, database: MathAtlas, use_references: bool = True):
+def format_example(example: dict, database: MathAtlas, use_references: bool = True):
     text = example['parent_text'][0]
     if use_references:
         refs = find_refs(example, database)
         ref_text = '\n\n'.join([f"# ID: {ref}\n# Type: {reftag}\n# Text: {reftext}" for ref, reftag, reftext in refs])
         name_text = ', '.join(find_names(example))
-        prompt = PROMPT_WITH_REFS.format(tag=example['tag'], names=name_text, text=text, refs=ref_text)
+        return dict(tag=example['tag'], names=name_text, text=text, refs=ref_text)
+        # prompt = PROMPT_WITH_REFS.format(tag=example['tag'], names=name_text, text=text, refs=ref_text)
     else:
-        prompt = PROMPT.format(tag=example['parent_tag'], text=text)
+        # prompt = PROMPT.format(tag=example['parent_tag'], text=text)
+        return (tag=example['parent_tag'], text=text)
 
     return prompt
+
+def format_conversation(prompt: str, system: str):
+    return [
+        dict(role="system", content=system),
+        dict(role="user", content=prompt),
+    ]
 
 if __name__ == "__main__":
     parser = ArgumentParser('formalize')
 
-    parser.add_argument('--data', '-d', type=str, help='path to dataset')
-    parser.add_argument('--output', '-o', type=str, help='path to output json')
+    subparser = parser.add_subparsers(help='command', dest='command')
+
+    process = subparser.add_parser('process_data')
+    process.add_argument('--json', '-j', type=str, help='path to MathAtlas json')
+    process.add_argument('--save_dataset', '-s', type=str, default="./mathatlas/", help='path where to save dataset')
+
+    formalize = subparser.add_parser('formalize')
+    formalize.add_argument('--dataset', '-d', type=str, help='path to dataset')
+    formalize.add_argument('--output', '-o', type=str, help='path to output json')
+    formalize.add_argument('--model', '-m', type=str, help='name of model')
+    formalize.add_argument('--num_examples', '-n', type=int, default=None, help='number of examples to process')
+    formalize.add_argument('--shuffle', action='store_true', help='shuffle the dataset')
+    formalize.add_argument('--system', '-s', type=str, default=SYSTEM, help='system instruction')
 
     args = parser.parse_args()
 
-    if args.data.endswith('.json'):
-        database = MathAtlas.from_mathatlas(args.data)
-    else:
-        database = load_from_disk(args.data)
+    match args.command:
+        case 'process_data':
+            database = MathAtlas.from_mathatlas(args.json)
+            # Save the dataset with refs
+            with_refs = database.map(lambda ex: {'example': format_example(ex, database, use_references=True)}, batched=False)
+            with_refs.save_to_disk(Path(args.save_dataset, 'with_refs'))
 
-    with_refs = database.map(lambda ex: format_prompt(ex, database, use_references=True), batched=False)
-    no_refs = database.map(lambda ex: format_prompt(ex, database, use_references=False), batched=False)
-    
+            # Save the dataset without refs
+            no_refs = database.map(lambda ex: {'example': format_example(ex, database, use_references=False)}, batched=False)
+            no_refs.save_to_disk(Path(args.save_dataset, 'no_refs'))
+        case 'formalize':
+            from vllm import LLM, SamplingParams
+            
+            # Load the dataset, and grab just the prompts
+            database = MathAtlas.load_from_disk(args.dataset).select(range(args.num_examples or sys.maxsize))
+            if args.shuffle:
+                database = database.shuffle(seed=1234)
+            prompts = database['prompt']
+            completions = []
+
+            # Enable deterministic sampling
+            sampling_params = SamplingParams(temperature=0.0, top_p=1)
+
+            llm = LLM(model=args.model)
+            outputs = llm.generate(prompts, sampling_params)
+            for output in outputs:
+                prompt = output.prompt
+                generated_text = output.outputs[0].text
+                completions.append(generated_text)
+
+            df = pd.DataFrame.from_records(list(zip(prompts, completions)), columns=['prompt', 'completion'])
+            df.to_json(args.output)

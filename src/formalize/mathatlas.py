@@ -1,5 +1,5 @@
 import pandas as pd
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import Dataset
 from dataclasses import dataclass
 
 # TODO
@@ -19,21 +19,6 @@ class MathAtlasExample:
 
 class MathAtlas(Dataset):
     pandas: pd.DataFrame
-
-    @classmethod
-    def from_dataset(cls, ds: Dataset):
-        # Read in MathAtlas json and fill nans 
-        df = ds.to_pandas()
-        df['parent_text'] = df['parent_text'].fillna(df.text)
-        df['parent_tag'] = df['parent_tag'].fillna(df.tag)
-        df['parent_start'] = df['parent_start'].fillna(df.start)
-        df['parent_end'] = df['parent_end'].fillna(df.end)
-
-        print(df)
-        df = df.set_index(['file_id', 'start', 'end', 'tag']).sort_index()
-        setattr(ds, "pandas", df)
-        return ds
-
 
     @classmethod
     def from_mathatlas(cls, json):
