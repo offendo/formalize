@@ -41,6 +41,8 @@ attrs==25.1.0
     # via aiohttp
     # via jsonschema
     # via referencing
+black==25.1.0
+    # via formalize
 blake3==1.0.4
     # via vllm
 cachetools==5.5.1
@@ -53,6 +55,7 @@ certifi==2025.1.31
 charset-normalizer==3.4.1
     # via requests
 click==8.1.8
+    # via black
     # via ray
     # via uvicorn
 cloudpickle==3.1.1
@@ -176,6 +179,8 @@ multidict==6.1.0
     # via yarl
 multiprocess==0.70.16
     # via datasets
+mypy-extensions==1.0.0
+    # via black
 nest-asyncio==1.6.0
     # via outlines
 networkx==3.4.2
@@ -241,6 +246,7 @@ outlines-core==0.1.26
     # via outlines
 packaging==24.2
     # via accelerate
+    # via black
     # via datasets
     # via huggingface-hub
     # via lm-format-enforcer
@@ -253,6 +259,8 @@ pandas==2.2.3
     # via formalize
 partial-json-parser==0.2.1.1.post5
     # via vllm
+pathspec==0.12.1
+    # via black
 peft==0.14.0
     # via formalize
 pillow==10.4.0
@@ -260,6 +268,7 @@ pillow==10.4.0
     # via torchvision
     # via vllm
 platformdirs==4.3.6
+    # via black
     # via virtualenv
 pluggy==1.5.0
     # via pytest

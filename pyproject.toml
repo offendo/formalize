@@ -15,6 +15,7 @@ dependencies = [
     "peft>=0.14.0",
     "vllm>=0.7.2",
     "elasticsearch==7.17.3",
+    "black>=25.1.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"

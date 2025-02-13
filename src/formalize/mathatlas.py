@@ -22,18 +22,24 @@ class MathAtlas(Dataset):
 
     @classmethod
     def from_mathatlas(cls, json):
-        # Read in MathAtlas json and fill nans 
-        df = pd.read_json(json).drop(['link_idx', 'valid', 'parent_annoid', 'color'], axis=1)
-        df['parent_text'] = df['parent_text'].fillna(df.text)
-        df['parent_tag'] = df['parent_tag'].fillna(df.tag)
-        df['parent_start'] = df['parent_start'].fillna(df.start)
-        df['parent_end'] = df['parent_end'].fillna(df.end)
+        # Read in MathAtlas json and fill nans
+        df = pd.read_json(json).drop(
+            ["link_idx", "valid", "parent_annoid", "color"], axis=1
+        )
+        df["parent_text"] = df["parent_text"].fillna(df.text)
+        df["parent_tag"] = df["parent_tag"].fillna(df.tag)
+        df["parent_start"] = df["parent_start"].fillna(df.start)
+        df["parent_end"] = df["parent_end"].fillna(df.end)
 
         # Group by parent node so we can grab all refs/names at once
-        gb = df.groupby(['file_id', 'parent_start', 'parent_end', 'parent_tag']).agg(list).reset_index()
-        ds: MathAtlas = MathAtlas.from_pandas(gb) # type:ignore
+        gb = (
+            df.groupby(["file_id", "parent_start", "parent_end", "parent_tag"])
+            .agg(list)
+            .reset_index()
+        )
+        ds: MathAtlas = MathAtlas.from_pandas(gb)  # type:ignore
 
         # Sort index
-        df = df.set_index(['file_id', 'start', 'end', 'tag']).sort_index()
+        df = df.set_index(["file_id", "start", "end", "tag"]).sort_index()
         setattr(ds, "pandas", df)
         return ds
