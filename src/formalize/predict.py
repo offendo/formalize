@@ -50,11 +50,9 @@ def format_example(example: dict, database: MathAtlas, use_references: bool = Tr
         refs = find_refs(example, database)
         ref_text = '\n\n'.join([f"# ID: {ref}\n# Type: {reftag}\n# Text: {reftext}" for ref, reftag, reftext in refs])
         name_text = ', '.join(find_names(example))
-        return dict(tag=example['tag'], names=name_text, text=text, refs=ref_text)
-        # prompt = PROMPT_WITH_REFS.format(tag=example['tag'], names=name_text, text=text, refs=ref_text)
+        prompt = PROMPT_WITH_REFS.format(tag=example['tag'], names=name_text, text=text, refs=ref_text)
     else:
-        # prompt = PROMPT.format(tag=example['parent_tag'], text=text)
-        return (tag=example['parent_tag'], text=text)
+        prompt = PROMPT.format(tag=example['parent_tag'], text=text)
 
     return prompt
 
