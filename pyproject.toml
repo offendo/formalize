@@ -32,9 +32,17 @@ dev-dependencies = [
     "black>=25.1.0",
     "isort>=6.0.0",
 ]
+]
+
+[tool.rye.scripts]
+grpo = { cmd = "python src/formalize/grpo.py" }
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/formalize"]
+
+
+[tool.black]
+line-length = 120

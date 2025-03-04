@@ -8,3 +8,7 @@ wheels/
 
 # venv
 .venv
+
+# Data
+data/
+math_atlas.json
