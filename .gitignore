@@ -12,3 +12,5 @@ wheels/
 # Data
 data/
 math_atlas.json
+mathatlas
+math_atlas_entities_with_refs.json
