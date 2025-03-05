@@ -83,9 +83,18 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
         inputs = tokenizer(input_prompts, add_special_tokens=False).input_ids
         return {"input_length": [len(i) for i in inputs]}
 
+    def apply_template(examples):
+        prompts = []
+        for input, output in zip(examples['input'], examples['output']):
+            prompts.append(f"Statement in natural language:\n{input}\nTranslate the statement in natural language to Lean:\n{output}" + EOS)
+        return {'text': prompts}
+
+
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
     if "input_length" not in dataset.column_names["train"]:
-        dataset = dataset.map(get_input_length)
+        dataset = dataset.map(get_input_length, batched=True)
+
+    dataset = dataset.map(apply_template, batched=True)
     return dataset  # type:ignore
 
 
