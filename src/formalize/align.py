@@ -1,25 +1,14 @@
 #!/usr/bin/env python3
 from typing import Annotated
 from typer import Argument, Option, run as typer_run
+
+from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments
+from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from unsloth import FastLanguageModel, is_bfloat16_supported
-from unsloth import is_bfloat16_supported
-from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments
-from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
-
-
-class FormalAlignModel(FastLanguageModel):
-    @classmethod
-    def from_pretrained(cls, *args, **kwargs):
-        model, tokenizer = FastLanguageModel.from_pretrained(*args, **kwargs)
-        _, d = model.lm_head.weight.shape
-        weight = nn.Parameter(torch.randn(1, d, requires_grad=True))
-        model.lm_head.weight = weight
-        return model, tokenizer
 
 
 def load_model(
@@ -29,17 +18,18 @@ def load_model(
     gpu_memory_utilization: float,
     seed: int,
 ):
-    model, tokenizer = FormalAlignModel.from_pretrained(
+    from unsloth import FastLanguageModel
+    model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=model_name,
         max_seq_length=max_length,
         load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
         fast_inference=True,  # Enable vLLM fast inference
-        max_lora_rank=lora_rank,
+        max_lora_rank=lora_rank if lora_rank != -1 else 64, 
         gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
     )
 
     if lora_rank != -1:
-        model = FormalAlignModel.get_peft_model(
+        model = FastLanguageModel.get_peft_model(
             model,
             r=lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
@@ -53,7 +43,7 @@ def load_model(
     return model, tokenizer
 
 
-class FormalAlignTrainer(SFTTrainer):
+class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # Cross entropy loss (autoformalization loss)
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
@@ -85,10 +75,12 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
 
     def apply_template(examples):
         prompts = []
-        for input, output in zip(examples['input'], examples['output']):
-            prompts.append(f"Statement in natural language:\n{input}\nTranslate the statement in natural language to Lean:\n{output}" + EOS)
-        return {'text': prompts}
-
+        for input, output in zip(examples["input"], examples["output"]):
+            prompts.append(
+                f"Statement in natural language:\n{input}\nTranslate the statement in natural language to Lean:\n{output}"
+                + EOS
+            )
+        return {"text": prompts}
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
     if "input_length" not in dataset.column_names["train"]:
@@ -102,7 +94,7 @@ def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
     dataset: Annotated[str, Option(help="path to datasets to train", rich_help_panel="Data Config")],
-    output_dir: Annotated[str, Option(help="gradient accumulation", rich_help_panel="Data Config")],
+    output_dir: Annotated[str, Option(help="path to output directory", rich_help_panel="Data Config")],
     max_tokens: Annotated[int, Option(help="max tokens", rich_help_panel="Training Config")] = 2048,
     lora_rank: Annotated[int, Option(help="lora rank to train (-1 for no lora)", rich_help_panel="Model Config")] = -1,
     gpu_memory_utilization: Annotated[float, Option(help="percent of GPU to give to unsloth", rich_help_panel="Training Config")] = 0.6,
@@ -123,6 +115,7 @@ def train(
         seed=seed,
     )
 
+    from unsloth import is_bfloat16_supported
     training_args = SFTConfig(
         learning_rate=learning_rate,
         adam_beta1=0.9,
@@ -146,7 +139,7 @@ def train(
         response_template="Translate the statement in natural language to Lean:", tokenizer=tokenizer
     )
     data = load_data(dataset, tokenizer.eos_token)
-    trainer = FormalAlignTrainer(
+    trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,

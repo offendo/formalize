@@ -77,9 +77,7 @@ def find_refs(row: dict, database: MathAtlas):
         if len(links) == 0:
             refs.append((idn, None, None))
             continue
-        name = database.pandas.loc[
-            links[0]["file_id"], links[0]["start"], links[0]["end"], links[0]["tag"]
-        ]
+        name = database.pandas.loc[links[0]["file_id"], links[0]["start"], links[0]["end"], links[0]["tag"]]
         target = name.parent_text.iloc[0]
         target_tag = name.parent_tag.iloc[0]
         refs.append((idn, target_tag, target))
@@ -96,25 +94,16 @@ def format_example(example: dict, database: MathAtlas, use_references: bool = Tr
     parent_tag = example["parent_tag"]
     if use_references:
         refs = find_refs(example, database)
-        ref_text = "\n\n".join(
-            [
-                f"# ID: {ref}\n# Type: {reftag}\n# Text: {reftext}"
-                for ref, reftag, reftext in refs
-            ]
-        )
+        ref_text = "\n\n".join([f"# ID: {ref}\n# Type: {reftag}\n# Text: {reftext}" for ref, reftag, reftext in refs])
         name_text = ", ".join(find_names(example))
-        prompt = PROMPT_WITH_REFS.format(
-            tag=tag, names=name_text, text=text, refs=ref_text
-        )
+        prompt = PROMPT_WITH_REFS.format(tag=tag, names=name_text, text=text, refs=ref_text)
     else:
         prompt = PROMPT.format(tag=parent_tag, text=text)
 
     return prompt
 
 
-def format_conversation(
-    prompt: str, system: str, example: tuple[str, str] | None = None
-):
+def format_conversation(prompt: str, system: str, example: tuple[str, str] | None = None):
     messages = [
         dict(role="system", content=system),
     ]
@@ -146,10 +135,8 @@ if __name__ == "__main__":
     formalize.add_argument("--dataset", "-d", type=str, help="path to dataset")
     formalize.add_argument("--output", "-o", type=str, help="path to output directory")
     formalize.add_argument("--model", "-m", type=str, help="name of model")
-    formalize.add_argument("--icl", action='store_true', help="add an example to the prompt")
-    formalize.add_argument(
-        "--stop", type=str, help="stop token for model, e.g., for internlm, <|im_end|>"
-    )
+    formalize.add_argument("--icl", action="store_true", help="add an example to the prompt")
+    formalize.add_argument("--stop", type=str, help="stop token for model, e.g., for internlm, <|im_end|>")
     formalize.add_argument(
         "--num_examples",
         "-n",
@@ -158,9 +145,7 @@ if __name__ == "__main__":
         help="number of examples to process",
     )
     formalize.add_argument("--shuffle", action="store_true", help="shuffle the dataset")
-    formalize.add_argument(
-        "--system", "-s", type=str, default=SYSTEM, help="system instruction"
-    )
+    formalize.add_argument("--system", "-s", type=str, default=SYSTEM, help="system instruction")
 
     args = parser.parse_args()
 
@@ -169,18 +154,14 @@ if __name__ == "__main__":
             database = MathAtlas.from_mathatlas(args.json)
             # Save the dataset with refs
             with_refs = database.map(
-                lambda ex: {
-                    "prompt": format_example(ex, database, use_references=True)
-                },
+                lambda ex: {"prompt": format_example(ex, database, use_references=True)},
                 batched=False,
             )
             with_refs.save_to_disk(Path(args.save_dataset, "with_refs"))
 
             # Save the dataset without refs
             no_refs = database.map(
-                lambda ex: {
-                    "prompt": format_example(ex, database, use_references=False)
-                },
+                lambda ex: {"prompt": format_example(ex, database, use_references=False)},
                 batched=False,
             )
             no_refs.save_to_disk(Path(args.save_dataset, "no_refs"))
@@ -188,9 +169,7 @@ if __name__ == "__main__":
             from vllm import LLM, SamplingParams
 
             # Load the dataset, and grab just the prompts
-            database = MathAtlas.load_from_disk(args.dataset).select(
-                range(args.num_examples or sys.maxsize)
-            )
+            database = MathAtlas.load_from_disk(args.dataset).select(range(args.num_examples or sys.maxsize))
             if args.shuffle:
                 database = database.shuffle(seed=1234)
             prompts = database["prompt"]
@@ -200,11 +179,11 @@ if __name__ == "__main__":
                     p,
                     args.system,
                     example=(
-                        None
-                        if not args.icl
-                        else EXAMPLE_PROMPT_WITH_REFS
-                        if "with_refs" in args.dataset
-                        else EXAMPLE_PROMPT_NO_REFS,
+                        (
+                            None
+                            if not args.icl
+                            else EXAMPLE_PROMPT_WITH_REFS if "with_refs" in args.dataset else EXAMPLE_PROMPT_NO_REFS
+                        ),
                         EXAMPLE_COMPLETION,
                     ),
                 )
@@ -215,12 +194,8 @@ if __name__ == "__main__":
             llm = LLM(model=args.model, trust_remote_code=True)
 
             # Chat with deterministic sampling
-            sampling_params = SamplingParams(
-                max_tokens=2048, temperature=0.0, top_p=1, stop=[':= by', args.stop]
-            )
-            outputs = llm.chat(
-                messages=conversations, sampling_params=sampling_params, use_tqdm=True
-            )
+            sampling_params = SamplingParams(max_tokens=2048, temperature=0.0, top_p=1, stop=[":= by", args.stop])
+            outputs = llm.chat(messages=conversations, sampling_params=sampling_params, use_tqdm=True)
             completions = [output.outputs[0].text for output in outputs]
 
             # Save to json

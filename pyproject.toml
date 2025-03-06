@@ -14,8 +14,8 @@ dependencies = [
     "trl>=0.14.0",
     "peft>=0.14.0",
     "vllm>=0.7.2",
-    "elasticsearch==7.17.3",
-    "unsloth>=2025.3.4",
+    "unsloth==2025.2.14",
+    "unsloth_zoo==2025.2.7",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -31,10 +31,12 @@ dev-dependencies = [
     "jupyter>=1.1.1",
     "black>=25.1.0",
     "isort>=6.0.0",
+    "uv>=0.6.4",
 ]
 
 [tool.rye.scripts]
 grpo = { cmd = "python src/formalize/grpo.py" }
+align = { cmd = "python src/formalize/align.py" }
 
 [tool.hatch.metadata]
 allow-direct-references = true
