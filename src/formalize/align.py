@@ -19,12 +19,13 @@ def load_model(
     seed: int,
 ):
     from unsloth import FastLanguageModel
+
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=model_name,
         max_seq_length=max_length,
         load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
         fast_inference=True,  # Enable vLLM fast inference
-        max_lora_rank=lora_rank if lora_rank != -1 else 64, 
+        max_lora_rank=lora_rank if lora_rank != -1 else 64,
         gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
     )
 
@@ -116,6 +117,7 @@ def train(
     )
 
     from unsloth import is_bfloat16_supported
+
     training_args = SFTConfig(
         learning_rate=learning_rate,
         adam_beta1=0.9,
@@ -138,7 +140,7 @@ def train(
     collator = DataCollatorForCompletionOnlyLM(
         response_template="Translate the statement in natural language to Lean:", tokenizer=tokenizer
     )
-    data = load_data(dataset, tokenizer.eos_token)
+    data = load_data(dataset, tokenizer)
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
