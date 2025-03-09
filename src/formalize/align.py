@@ -5,6 +5,7 @@ from typer import Argument, Option, run as typer_run
 from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
+import pdb
 
 import torch
 import torch.nn as nn
@@ -50,8 +51,11 @@ class FastLanguageTrainer(SFTTrainer):
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
 
         # Contrastive loss
-        hidden_states = outputs["hidden_states"]
-        input_length = inputs["input_length"]
+        hidden_states = outputs.hidden_states  # type:ignore
+        breakpoint()
+
+        # Get the index of the end of the prompt, so we can get the representation of the natural language
+        inputs["labels"]
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
         fl_state = hidden_states[-1]
@@ -136,17 +140,19 @@ def train(
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
+        dataset_text_field="text",
     )
-    collator = DataCollatorForCompletionOnlyLM(
-        response_template="Translate the statement in natural language to Lean:", tokenizer=tokenizer
-    )
+    # collator = DataCollatorForCompletionOnlyLM(
+    #     response_template="Translate the statement in natural language to Lean:", tokenizer=tokenizer
+    # )
     data = load_data(dataset, tokenizer)
+    breakpoint()
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
+        # data_collator=collator,
         train_dataset=data["train"],
-        data_collator=collator,
         eval_dataset=data["validation"],
     )
     trainer.train()

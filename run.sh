@@ -7,9 +7,7 @@ python src/formalize/align.py \
     --output-dir "./formal_align" \
     --max-tokens 2048 \
     --seed 1234 \
-    --learning-rate "2e-6" \
-    --scheduler "constant" \
-    --optimizer "paged_adamw_8bit" \
+    --learning-rate "2e-6" --scheduler "constant" --optimizer "paged_adamw_8bit" \
     --num-epochs 1 \
-    --batch-size 4 \
-    --gradient-accumulation 16
+    --batch-size 4 --gradient-accumulation 16 \
+    --lora-rank 64
