@@ -23,7 +23,7 @@ spec:
         - name: train
           image: "ghcr.io/offendo/formalize:latest"
           command: ["bash", "run.sh"]
-          workingDir: /app/atpgen
+          workingDir: /app/formalize
           volumeMounts:
             - name: git-repo
               mountPath: /app
