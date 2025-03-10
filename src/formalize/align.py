@@ -82,6 +82,7 @@ def load_model(
 
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
@@ -100,14 +101,16 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Do mean Log Softmax over the cosine similarity
         cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
-        cl_loss = torch.mean(F.log_softmax(cos, dim=-1))
+        cl_loss = -torch.mean(F.log_softmax(cos, dim=-1))
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
+        self._metrics["ce_loss"].append(ce_loss.item())
+        self._metrics["cl_loss"].append(cl_loss.item())
         return (loss, outputs) if return_outputs else loss
 
 
-def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
+def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
 
     def get_input_length(examples):
@@ -135,6 +138,9 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
 
     dataset = dataset.map(apply_template, batched=True)
     dataset = dataset.map(tokenize, batched=True)
+    dataset = dataset.filter(
+        lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
+    )
     return dataset  # type:ignore
 
 
@@ -200,7 +206,7 @@ def train(
         remove_unused_columns=False,
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
-    data = load_data(dataset, tokenizer)
+    data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
