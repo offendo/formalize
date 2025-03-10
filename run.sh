@@ -6,10 +6,10 @@ export WANDB_PROJECT='formal-align'
 python src/formalize/align.py \
     --model-name "meta-llama/Meta-Llama-3.1-8B" \
     --dataset "offendo/formal-align-redux" \
-    --output-dir "./formal_align" \
+    --output-dir "/volume/formal_align" \
     --max-tokens 2048 \
     --seed 1234 \
     --learning-rate "2e-6" --scheduler "constant" --optimizer "paged_adamw_8bit" \
     --num-epochs 1 \
-    --batch-size 8 --gradient-accumulation 32 \
+    --batch-size 2 --gradient-accumulation 32 \
     --lora-rank 256

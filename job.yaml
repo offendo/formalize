@@ -13,9 +13,10 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      - NVIDIA-A100-SXM4-80GB
-                      - NVIDIA-A100-80GB-PCIe
-                      - NVIDIA-A100-80GB-PCIe
+                       #- NVIDIA-A100-SXM4-80GB
+                       #- NVIDIA-A100-80GB-PCIe
+                       #- NVIDIA-A100-80GB-PCIe
+                      - NVIDIA-GeForce-RTX-4090
                         # - key: nvidia.com/cuda.driver.major
                         #   operator: In
                         #   values: ["525", "530", "535"]
@@ -44,7 +45,7 @@ spec:
               ephemeral-storage: 100Gi
         - name: chmod
           image: alpine:latest
-          command: ["chmod", "-R", "a+rw", "/volume/formal-align/"]
+          command: ["chmod", "-R", "a+rw", "/volume/formal-align"]
           resources:
             limits:
               memory: 4Gi
