@@ -2,10 +2,12 @@
 from typing import Annotated
 from typer import Argument, Option, run as typer_run
 
-from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments
+from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments, AutoModelForCausalLM, AutoTokenizer
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 import pdb
+
+pdb.set_trace()
 
 import torch
 import torch.nn as nn
@@ -18,30 +20,42 @@ def load_model(
     lora_rank: int,
     gpu_memory_utilization: float,
     seed: int,
+    unsloth: bool = False,
 ):
-    from unsloth import FastLanguageModel
+    if unsloth:
+        from unsloth import FastLanguageModel
 
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=model_name,
-        max_seq_length=max_length,
-        load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
-        fast_inference=True,  # Enable vLLM fast inference
-        max_lora_rank=lora_rank if lora_rank != -1 else 64,
-        gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
-    )
-
-    if lora_rank != -1:
-        model = FastLanguageModel.get_peft_model(
-            model,
-            r=lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-            lora_alpha=lora_rank,
-            use_gradient_checkpointing="unsloth",  # Enable long context finetuning
-            use_rslora=False,
-            bias="none",
-            lora_dropout=0,
-            random_state=seed,
+        model, tokenizer = FastLanguageModel.from_pretrained(
+            model_name=model_name,
+            max_seq_length=max_length,
+            load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
+            fast_inference=True,  # Enable vLLM fast inference
+            max_lora_rank=lora_rank if lora_rank != -1 else 64,
+            gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
         )
+
+        if lora_rank != -1:
+            model = FastLanguageModel.get_peft_model(
+                model,
+                r=lora_rank,  # Choose any number > 0 ! Suggested 8, 16, 32, 64, 128
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+                lora_alpha=lora_rank,
+                use_gradient_checkpointing="unsloth",  # Enable long context finetuning
+                use_rslora=False,
+                bias="none",
+                lora_dropout=0,
+                random_state=seed,
+            )
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            max_seq_length=max_length,
+            load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
+            max_lora_rank=lora_rank if lora_rank != -1 else 64,
+            trust_remote_code=True,
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+
     return model, tokenizer
 
 
@@ -52,14 +66,14 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Contrastive loss
         hidden_states = outputs.hidden_states  # type:ignore
-        breakpoint()
 
         # Get the index of the end of the prompt, so we can get the representation of the natural language
-        inputs["labels"]
+        # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
+        nl_index = inputs["input_length"]
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
         fl_state = hidden_states[-1]
-        nl_state = hidden_states[input_length]
+        nl_state = hidden_states[nl_index]
 
         # Do mean Log Softmax over the cosine similarity
         cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
@@ -87,11 +101,17 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
             )
         return {"text": prompts}
 
+    def tokenize(examples):
+        batch = tokenizer(examples["text"], padding=False)
+        batch["input_length"] = examples["input_length"]
+        return batch
+
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
     if "input_length" not in dataset.column_names["train"]:
         dataset = dataset.map(get_input_length, batched=True)
 
     dataset = dataset.map(apply_template, batched=True)
+    dataset = dataset.map(tokenize, batched=True)
     return dataset  # type:ignore
 
 
@@ -110,6 +130,7 @@ def train(
     num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 1,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
+    unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
     model, tokenizer = load_model(
@@ -120,8 +141,6 @@ def train(
         seed=seed,
     )
 
-    from unsloth import is_bfloat16_supported
-
     training_args = SFTConfig(
         learning_rate=learning_rate,
         adam_beta1=0.9,
@@ -131,8 +150,8 @@ def train(
         lr_scheduler_type=scheduler,
         optim=optimizer,
         logging_steps=10,
-        bf16=is_bfloat16_supported(),
-        fp16=not is_bfloat16_supported(),
+        bf16=torch.cuda.is_bf16_supported(),
+        fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
@@ -155,6 +174,7 @@ def train(
         train_dataset=data["train"],
         eval_dataset=data["validation"],
     )
+    breakpoint()
     trainer.train()
     trainer.save_model(output_dir)
 
