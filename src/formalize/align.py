@@ -1,17 +1,27 @@
 #!/usr/bin/env python3
+import os
 from typing import Annotated
 from typer import Argument, Option, run as typer_run
 
-from transformers import DataCollator, DefaultDataCollator, PreTrainedTokenizer, TrainingArguments, AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    DataCollator,
+    DataCollatorForLanguageModeling,
+    DefaultDataCollator,
+    PreTrainedTokenizer,
+    TrainingArguments,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+)
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
+from peft import LoraConfig, get_peft_model, TaskType
 import pdb
-
-pdb.set_trace()
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+DEBUG = bool(os.environ.get("DEBUG", "") != "")
 
 
 def load_model(
@@ -49,12 +59,22 @@ def load_model(
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            max_seq_length=max_length,
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
-            max_lora_rank=lora_rank if lora_rank != -1 else 64,
             trust_remote_code=True,
+            device_map="auto",
         )
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=lora_rank,
+            lora_alpha=32,
+            lora_dropout=0.1,
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        )
+        model = get_peft_model(model, peft_config)
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token_id = tokenizer.eos_token_id
 
     return model, tokenizer
 
@@ -69,7 +89,7 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Get the index of the end of the prompt, so we can get the representation of the natural language
         # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
-        nl_index = inputs["input_length"]
+        nl_index = inputs["input_length"] - 3
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
         fl_state = hidden_states[-1]
@@ -115,6 +135,22 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
     return dataset  # type:ignore
 
 
+class CustomCollator(DataCollatorForLanguageModeling):
+    def __call__(self, examples, *args, **kwargs):
+        if DEBUG:
+            breakpoint()
+        if isinstance(examples, dict):
+            input_length = examples["input_length"]
+        else:
+            input_length = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
+        texts = [ex.pop("text") for ex in examples]
+        inputs = [ex.pop("input") for ex in examples]
+        outputs = [ex.pop("output") for ex in examples]
+        batch = super().__call__(examples, *args, **kwargs)
+        batch["input_length"] = input_length
+        return batch
+
+
 def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
@@ -139,6 +175,7 @@ def train(
         lora_rank=lora_rank,
         gpu_memory_utilization=gpu_memory_utilization,
         seed=seed,
+        unsloth=unsloth,
     )
 
     training_args = SFTConfig(
@@ -159,22 +196,18 @@ def train(
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
-        dataset_text_field="text",
+        remove_unused_columns=False,
     )
-    # collator = DataCollatorForCompletionOnlyLM(
-    #     response_template="Translate the statement in natural language to Lean:", tokenizer=tokenizer
-    # )
+    collator = CustomCollator(tokenizer=tokenizer)
     data = load_data(dataset, tokenizer)
-    breakpoint()
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
-        # data_collator=collator,
+        data_collator=collator,
         train_dataset=data["train"],
         eval_dataset=data["validation"],
     )
-    breakpoint()
     trainer.train()
     trainer.save_model(output_dir)
 
