@@ -21,6 +21,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 DEBUG = bool(os.environ.get("DEBUG", "") != "")
 
 
@@ -82,22 +83,24 @@ def load_model(
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         # Cross entropy loss (autoformalization loss)
+        inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
 
-        # Contrastive loss
-        hidden_states = outputs.hidden_states  # type:ignore
+        # Last hidden state for contrastive loss
+        hidden_states = outputs.hidden_states[-1]  # type:ignore
 
         # Get the index of the end of the prompt, so we can get the representation of the natural language
         # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
         nl_index = inputs["input_length"] - 3
+        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[-1]
-        nl_state = hidden_states[nl_index]
+        fl_state = hidden_states[:, fl_index]
+        nl_state = hidden_states[:, nl_index]
 
         # Do mean Log Softmax over the cosine similarity
         cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
-        cl_loss = torch.mean(F.log_softmax(cos))
+        cl_loss = torch.mean(F.log_softmax(cos, dim=-1))
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -137,8 +140,6 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer) -> DatasetDict:
 
 class CustomCollator(DataCollatorForLanguageModeling):
     def __call__(self, examples, *args, **kwargs):
-        if DEBUG:
-            breakpoint()
         if isinstance(examples, dict):
             input_length = examples["input_length"]
         else:
@@ -198,7 +199,7 @@ def train(
         max_seq_length=max_tokens,
         remove_unused_columns=False,
     )
-    collator = CustomCollator(tokenizer=tokenizer)
+    collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer)
     trainer = FastLanguageTrainer(
         model=model,
