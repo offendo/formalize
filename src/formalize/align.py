@@ -213,7 +213,7 @@ def train(
         args=training_args,
         data_collator=collator,
         train_dataset=data["train"],
-        eval_dataset=data["validation"],
+        # eval_dataset=data["validation"],
     )
     trainer.train()
     trainer.save_model(output_dir)

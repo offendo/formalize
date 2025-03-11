@@ -9,7 +9,7 @@ python src/formalize/align.py \
     --output-dir "/volume/formal_align" \
     --max-tokens 2048 \
     --seed 1234 \
-    --learning-rate "2e-6" --scheduler "constant" --optimizer "paged_adamw_8bit" \
+    --learning-rate "2e-6" --scheduler "constant_with_warmup" --optimizer "paged_adamw_8bit" \
     --num-epochs 1 \
     --batch-size 2 --gradient-accumulation 32 \
     --lora-rank 256
