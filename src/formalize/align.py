@@ -16,7 +16,6 @@ from transformers import (
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model, TaskType
-import pdb
 
 import torch
 import torch.nn as nn
@@ -34,6 +33,7 @@ def load_model(
     seed: int,
     unsloth: bool = False,
     vllm: bool = False,
+    adapter_name: str | None = None,
 ):
     if unsloth:
         from unsloth import FastLanguageModel
@@ -59,13 +59,6 @@ def load_model(
                 lora_dropout=0,
                 random_state=seed,
             )
-    elif vllm:
-        from vllm import LLM
-
-        model = LLM(model=model_name, trust_remote_code=True, gpu_memory_utilization=gpu_memory_utilization)
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-        tokenizer.pad_token = tokenizer.eos_token
-        tokenizer.pad_token_id = tokenizer.eos_token_id
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -168,34 +161,43 @@ class CustomCollator(DataCollatorForLanguageModeling):
         return batch
 
 
-def alignment_score(model: LlamaForCausalLM, inputs: dict):
-    # Cross entropy loss (autoformalization loss)
-    inputs["output_hidden_states"] = True
-    outputs = model.forward(**inputs)
+class FormalAlignModel(nn.Module):
+    def __init__(self, model: nn.Module):
+        super().__init__()
+        self.model = model
 
-    # Last hidden state for contrastive loss
-    hidden_states = outputs.hidden_states[-1]  # type:ignore
-    logits = outputs.logits  # type:ignore
+    def alignment_score(self, **inputs):
+        # Cross entropy loss (autoformalization loss)
+        inputs["output_hidden_states"] = True
+        outputs = self.model.forward(**inputs)
 
-    # Get the index of the end of the prompt, so we can get the representation of the natural language
-    # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
-    nl_index = inputs["input_length"] - 3
-    fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
+        # Last hidden state for contrastive loss
+        hidden_states = outputs.hidden_states[-1]  # type:ignore
+        logits = outputs.logits  # type:ignore
 
-    certainty_score = 0
-    batch_size = logits.size(0)
-    for sequence, start, stop in zip(logits, nl_index + 1, fl_index):
-        log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
-        max_token_prob = torch.max(log_probs, dim=-1).values
-        certainty_score += torch.exp(torch.mean(max_token_prob, dim=-1)) / batch_size
+        # Get the index of the end of the prompt, so we can get the representation of the natural language
+        # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
+        nl_index = inputs["input_length"] - 3
+        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
-    # Get the states for the end of the input (NL) and end out of the output (FL)
-    fl_state = hidden_states[:, fl_index]
-    nl_state = hidden_states[:, nl_index]
+        certainty_score = 0
+        batch_size = logits.size(0)
+        for sequence, start, stop in zip(logits, nl_index + 1, fl_index):
+            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
+            max_token_prob = torch.max(log_probs, dim=-1).values
+            certainty_score += torch.exp(torch.mean(max_token_prob, dim=-1)) / batch_size
 
-    similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
+        # Get the states for the end of the input (NL) and end out of the output (FL)
+        fl_state = hidden_states[:, fl_index]
+        nl_state = hidden_states[:, nl_index]
 
-    return (similarity_score + certainty_score) / 2
+        similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
+
+        return (similarity_score + certainty_score) / 2
+
+    def forward(self, **kwargs):
+        score = self.alignment_score(**kwargs)
+        return score
 
 
 def train(
@@ -273,31 +275,24 @@ def test(
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
-    model, tokenizer = load_model(
+    base_model, tokenizer = load_model(
         model_name,
-        adapter=adapter_name,
         max_length=max_tokens,
         lora_rank=-1,
         gpu_memory_utilization=gpu_memory_utilization,
         seed=seed,
         unsloth=unsloth,
+        adapter_name=adapter_name,
     )
 
+    model = FormalAlignModel(base_model)
+
     training_args = SFTConfig(
-        learning_rate=learning_rate,
-        adam_beta1=0.9,
-        adam_beta2=0.99,
-        weight_decay=0.0,
-        warmup_ratio=0.03,
-        lr_scheduler_type=scheduler,
-        optim=optimizer,
         logging_steps=10,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
-        gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
-        num_train_epochs=num_epochs,  # Set to 1 for a full training run
-        save_steps=500,
+        per_device_eval_batch_size=batch_size,
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
@@ -306,6 +301,8 @@ def test(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    data["validation"]
+
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
@@ -314,8 +311,6 @@ def test(
         train_dataset=data["train"],
         # eval_dataset=data["validation"],
     )
-    trainer.train()
-    trainer.save_model(output_dir)
 
 
 if __name__ == "__main__":

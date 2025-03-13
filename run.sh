@@ -7,10 +7,10 @@ export WANDB_RUN='bs256'
 python src/formalize/align.py \
     --model-name "meta-llama/Meta-Llama-3.1-8B" \
     --dataset "offendo/formal-align-redux" \
-    --output-dir "/volume/formal_align" \
+    --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
     --seed 1234 \
-    --learning-rate "2e-6" --scheduler "constant_with_warmup" --optimizer "paged_adamw_8bit" \
+    --learning-rate "2e-5" --scheduler "cosine" --optimizer "paged_adamw_8bit" \
     --num-epochs 3 \
     --batch-size 2 --gradient-accumulation 128 \
     --lora-rank 256

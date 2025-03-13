@@ -11,7 +11,7 @@ spec:
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
-                  - NVIDIA-GeForce-RTX-4090
+                  - NVIDIA-GeForce-RTX-3090
   imagePullSecrets:
     - name: nilay-ghcr-key
   containers:
