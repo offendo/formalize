@@ -206,9 +206,10 @@ class FormalAlignModel(nn.Module):
 
 
 def compute_metrics(evals: EvalPrediction):
-    preds, labels = evals
-    # TODO: create test dataset with labels of aligned/misaligned and test
-    pass
+    scores, labels = evals
+    # This is the cutoff given by the FormalAlign paper
+    CUTOFF = 0.7
+    preds = scores >= CUTOFF  # type:ignore
 
 
 def train(
