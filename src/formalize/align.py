@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 import os
+import json
+import pandas as pd
+from pathlib import Path
+from pprint import pprint
 from typing import Annotated
 from typer import Argument, Option, run as typer_run
 
@@ -7,6 +11,7 @@ from transformers import (
     DataCollator,
     DataCollatorForLanguageModeling,
     DefaultDataCollator,
+    EvalPrediction,
     LlamaForCausalLM,
     PreTrainedTokenizer,
     TrainingArguments,
@@ -200,6 +205,12 @@ class FormalAlignModel(nn.Module):
         return score
 
 
+def compute_metrics(evals: EvalPrediction):
+    preds, labels = evals
+    # TODO: create test dataset with labels of aligned/misaligned and test
+    pass
+
+
 def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
@@ -301,16 +312,20 @@ def test(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
-    data["validation"]
-
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
-        train_dataset=data["train"],
-        # eval_dataset=data["validation"],
+        compute_metrics=compute_metrics,
     )
+    for split in data.keys():
+        preds, labels, metrics = trainer.predict(test_dataset=data[split], metric_key_prefix=split)  # type:ignore
+        pprint(metrics)
+        with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
+            json.dump(metrics, f)
+        df = pd.DataFrame({"pred": preds, "label": labels})
+        df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
 if __name__ == "__main__":

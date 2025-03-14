@@ -11,6 +11,5 @@ python src/formalize/align.py \
     --max-tokens 2048 \
     --seed 1234 \
     --learning-rate "2e-5" --scheduler "cosine" --optimizer "paged_adamw_8bit" \
-    --num-epochs 3 \
-    --batch-size 2 --gradient-accumulation 128 \
-    --lora-rank 256
+    --num-epochs 6 \
+    --batch-size 2 --gradient-accumulation 64

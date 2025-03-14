@@ -65,7 +65,7 @@ spec:
               mountPath: /etc/git-secret
         - name: chmod
           image: alpine:latest
-          command: ["chmod", "-R", "a+rw", "/volume/formal-align"]
+          command: ["chmod", "a+rw", "/volume/"]
           resources:
             limits:
               memory: 4Gi
