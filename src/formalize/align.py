@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from pprint import pprint
 from typing import Annotated
-from typer import Argument, Option, run as typer_run
+from typer import Argument, Option, run as typer_run, Typer
 
 from transformers import (
     DataCollator,
@@ -21,6 +21,7 @@ from transformers import (
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model, TaskType
+from sklearn.metrics import precision_recall_fscore_support
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,8 @@ import torch.nn.functional as F
 
 os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 DEBUG = bool(os.environ.get("DEBUG", "") != "")
+
+app = Typer()
 
 
 def load_model(
@@ -206,12 +209,16 @@ class FormalAlignModel(nn.Module):
 
 
 def compute_metrics(evals: EvalPrediction):
-    scores, labels = evals
     # This is the cutoff given by the FormalAlign paper
     CUTOFF = 0.7
+
+    scores, labels = evals
     preds = scores >= CUTOFF  # type:ignore
+    p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="micro")
+    return {"precision": p, "recall": r, "f1": f1}
 
 
+@app.command()
 def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
@@ -274,6 +281,7 @@ def train(
     trainer.save_model(output_dir)
 
 
+@app.command()
 def test(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to test", rich_help_panel="Model Config")],
@@ -330,4 +338,4 @@ def test(
 
 
 if __name__ == "__main__":
-    typer_run(train)
+    app.run()

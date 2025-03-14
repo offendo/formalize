@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-3090-2
+  name: nilay-formalize-3090-full
 spec:
   template:
     spec:
@@ -14,9 +14,10 @@ spec:
                     operator: In
                     values:
                       - NVIDIA-GeForce-RTX-3090
-                       #- NVIDIA-A100-SXM4-80GB
-                       #- NVIDIA-A100-80GB-PCIe
-                       #- NVIDIA-A100-80GB-PCIe
+                      - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-A100-SXM4-80GB
+                      - NVIDIA-A100-80GB-PCIe
+                      - NVIDIA-A100-80GB-PCIe
                         # - key: nvidia.com/cuda.driver.major
                         #   operator: In
                         #   values: ["525", "530", "535"]
