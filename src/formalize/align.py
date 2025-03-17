@@ -37,12 +37,14 @@ DEBUG = bool(os.environ.get("DEBUG", "") != "")
 typer.core.rich = None
 app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
+
 @dataclass
 class FormalAlignOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     hidden_states: Optional[tuple[torch.FloatTensor]] = None
     predictions: torch.FloatTensor = None
+
 
 def load_model(
     model_name: str,
@@ -106,7 +108,7 @@ def load_model(
 
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        B, N = inputs['input_ids'].shape
+        B, N = inputs["input_ids"].shape
 
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
@@ -156,14 +158,12 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
     def tokenize(examples):
         batch = tokenizer(examples["text"], padding=False)
         batch["input_length"] = examples["input_length"]
-        if 'label' in examples:
+        if "label" in examples:
             batch["aligned"] = examples["label"]
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
-    if "input_length" not in dataset.column_names[list(dataset.keys())[0]]:
-        dataset = dataset.map(get_input_length, batched=True)
-
+    dataset = dataset.map(get_input_length, batched=True)
     dataset = dataset.map(apply_template, batched=True)
     dataset = dataset.map(tokenize, batched=True)
     dataset = dataset.filter(
@@ -178,7 +178,7 @@ class CustomCollator(DataCollatorForLanguageModeling):
             input_length = examples["input_length"]
         else:
             input_length = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
-        if 'aligned' in examples[0]:
+        if "aligned" in examples[0]:
             labels = [ex.pop("aligned") for ex in examples]
         else:
             labels = None
@@ -224,9 +224,11 @@ class FormalAlignModel(nn.Module):
 
         similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
         score = (similarity_score + certainty_score) / 2
-        ic(certainty_score, similarity_score, score, inputs['aligned'])
+        ic(certainty_score, similarity_score, score, inputs["aligned"])
 
-        return FormalAlignOutput(loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score)
+        return FormalAlignOutput(
+            loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
+        )
 
     def forward(self, **kwargs):
         score = self.alignment_score(**kwargs)
