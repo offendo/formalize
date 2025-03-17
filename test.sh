@@ -13,4 +13,4 @@ python src/formalize/align.py test \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
     --seed 1234 \
-    --batch-size 4
+    --batch-size 2 --unsloth

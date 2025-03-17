@@ -2,10 +2,13 @@
 import os
 import json
 import pandas as pd
+from icecream import ic
+from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
-from typing import Annotated
+from typing import Annotated, Optional
 from typer import Argument, Option, run as typer_run, Typer
+import typer
 
 from transformers import (
     DataCollator,
@@ -17,7 +20,9 @@ from transformers import (
     TrainingArguments,
     AutoModelForCausalLM,
     AutoTokenizer,
+    Trainer,
 )
+from transformers.utils import ModelOutput
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model, TaskType
@@ -29,9 +34,15 @@ import torch.nn.functional as F
 
 os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 DEBUG = bool(os.environ.get("DEBUG", "") != "")
+typer.core.rich = None
+app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
-app = Typer()
-
+@dataclass
+class FormalAlignOutput(ModelOutput):
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    hidden_states: Optional[tuple[torch.FloatTensor]] = None
+    predictions: torch.FloatTensor = None
 
 def load_model(
     model_name: str,
@@ -50,7 +61,8 @@ def load_model(
             model_name=model_name,
             max_seq_length=max_length,
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
-            fast_inference=True,  # Enable vLLM fast inference
+            # fast_inference=True,  # Enable vLLM fast inference
+            fast_inference=False,  # Enable vLLM fast inference
             max_lora_rank=lora_rank if lora_rank != -1 else 64,
             gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
         )
@@ -72,6 +84,7 @@ def load_model(
             model_name,
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
             trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
             device_map="auto",
         )
         if lora_rank != -1:
@@ -93,6 +106,7 @@ def load_model(
 
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
+        B, N = inputs['input_ids'].shape
 
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
@@ -107,8 +121,8 @@ class FastLanguageTrainer(SFTTrainer):
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[:, fl_index]
-        nl_state = hidden_states[:, nl_index]
+        fl_state = hidden_states[torch.arange(B), fl_index]
+        nl_state = hidden_states[torch.arange(B), nl_index]
 
         # Do mean Log Softmax over the cosine similarity
         cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
@@ -118,6 +132,7 @@ class FastLanguageTrainer(SFTTrainer):
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(ce_loss.item())
         self._metrics["cl_loss"].append(cl_loss.item())
+        self._metrics["total_loss"].append(loss.item())
         return (loss, outputs) if return_outputs else loss
 
 
@@ -125,7 +140,7 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
     EOS: str = tokenizer.eos_token  # type:ignore
 
     def get_input_length(examples):
-        input_prompts = ["\n".join(ex.split("\n")[:-1]) for ex in examples["input"]]
+        input_prompts = [ex for ex in examples["input"]]
         inputs = tokenizer(input_prompts, add_special_tokens=False).input_ids
         return {"input_length": [len(i) for i in inputs]}
 
@@ -141,10 +156,12 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
     def tokenize(examples):
         batch = tokenizer(examples["text"], padding=False)
         batch["input_length"] = examples["input_length"]
+        if 'label' in examples:
+            batch["aligned"] = examples["label"]
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
-    if "input_length" not in dataset.column_names["train"]:
+    if "input_length" not in dataset.column_names[list(dataset.keys())[0]]:
         dataset = dataset.map(get_input_length, batched=True)
 
     dataset = dataset.map(apply_template, batched=True)
@@ -161,11 +178,17 @@ class CustomCollator(DataCollatorForLanguageModeling):
             input_length = examples["input_length"]
         else:
             input_length = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
+        if 'aligned' in examples[0]:
+            labels = [ex.pop("aligned") for ex in examples]
+        else:
+            labels = None
         texts = [ex.pop("text") for ex in examples]
         inputs = [ex.pop("input") for ex in examples]
         outputs = [ex.pop("output") for ex in examples]
         batch = super().__call__(examples, *args, **kwargs)
-        batch["input_length"] = input_length
+        batch["input_length"] = torch.tensor(input_length)
+        if labels is not None:
+            batch["aligned"] = torch.tensor(labels, dtype=torch.long)
         return batch
 
 
@@ -188,20 +211,22 @@ class FormalAlignModel(nn.Module):
         nl_index = inputs["input_length"] - 3
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
-        certainty_score = 0
         batch_size = logits.size(0)
-        for sequence, start, stop in zip(logits, nl_index + 1, fl_index):
+        certainty_score = torch.zeros(batch_size, dtype=logits.dtype, device=logits.device)
+        for i, (sequence, start, stop) in enumerate(zip(logits, nl_index + 1, fl_index)):
             log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
             max_token_prob = torch.max(log_probs, dim=-1).values
-            certainty_score += torch.exp(torch.mean(max_token_prob, dim=-1)) / batch_size
+            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[:, fl_index]
-        nl_state = hidden_states[:, nl_index]
+        fl_state = hidden_states[torch.arange(batch_size), fl_index]
+        nl_state = hidden_states[torch.arange(batch_size), nl_index]
 
         similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
+        score = (similarity_score + certainty_score) / 2
+        ic(certainty_score, similarity_score, score, inputs['aligned'])
 
-        return (similarity_score + certainty_score) / 2
+        return FormalAlignOutput(loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score)
 
     def forward(self, **kwargs):
         score = self.alignment_score(**kwargs)
@@ -212,8 +237,8 @@ def compute_metrics(evals: EvalPrediction):
     # This is the cutoff given by the FormalAlign paper
     CUTOFF = 0.7
 
-    scores, labels = evals
-    preds = scores >= CUTOFF  # type:ignore
+    (logits, hidden_states, scores), (_, labels), inputs, losses = evals
+    preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="micro")
     return {"precision": p, "recall": r, "f1": f1}
 
@@ -223,6 +248,7 @@ def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
     dataset: Annotated[str, Option(help="path to datasets to train", rich_help_panel="Data Config")],
+    eval_dataset: Annotated[str, Option(help="path to datasets to eval", rich_help_panel="Data Config")],
     output_dir: Annotated[str, Option(help="path to output directory", rich_help_panel="Data Config")],
     max_tokens: Annotated[int, Option(help="max tokens", rich_help_panel="Training Config")] = 2048,
     lora_rank: Annotated[int, Option(help="lora rank to train (-1 for no lora)", rich_help_panel="Model Config")] = -1,
@@ -261,6 +287,7 @@ def train(
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=500,
+        eval_steps=500,
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
@@ -269,13 +296,14 @@ def train(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
         train_dataset=data["train"],
-        # eval_dataset=data["validation"],
+        eval_dataset=test_data["forml4_basic"],
     )
     trainer.train()
     trainer.save_model(output_dir)
@@ -318,24 +346,30 @@ def test(
         max_seq_length=max_tokens,
         remove_unused_columns=False,
         include_for_metrics=["loss", "inputs"],
+        label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
-    trainer = FastLanguageTrainer(
+    trainer = SFTTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
         compute_metrics=compute_metrics,
+        train_dataset=data[list(data.keys())[0]],
     )
     for split in data.keys():
-        preds, labels, metrics = trainer.predict(test_dataset=data[split], metric_key_prefix=split)  # type:ignore
+        # preds, labels, metrics = trainer.predict(test_dataset=data[split], metric_key_prefix=split)  # type:ignore
+        # pprint(metrics)
+        # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
+        #     json.dump(metrics, f)
+        metrics = trainer.evaluate(data[split].select(range(20)), metric_key_prefix=split)  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
-        df = pd.DataFrame({"pred": preds, "label": labels})
-        df.to_json(Path(output_dir, f"{split}_preds.json"))
+        # df = pd.DataFrame({"pred": preds, "label": labels})
+        # df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
 if __name__ == "__main__":
-    app.run()
+    app()
