@@ -37,12 +37,14 @@ DEBUG = bool(os.environ.get("DEBUG", "") != "")
 typer.core.rich = None
 app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
+
 @dataclass
 class FormalAlignOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
     hidden_states: Optional[tuple[torch.FloatTensor]] = None
     predictions: torch.FloatTensor = None
+
 
 def load_model(
     model_name: str,
@@ -106,23 +108,21 @@ def load_model(
 
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
-        B, N = inputs['input_ids'].shape
+        B, N = inputs["input_ids"].shape
 
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
 
-        # Last hidden state for contrastive loss
-        hidden_states = outputs.hidden_states[-1]  # type:ignore
+        input_only = {"input_ids": inputs["input"], "attention_mask": inputs["input_mask"]}
+        output_only = {"input_ids": inputs["output"], "attention_mask": inputs["output_mask"]}
 
-        # Get the index of the end of the prompt, so we can get the representation of the natural language
-        # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
-        nl_index = inputs["input_length"] - 3
-        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
+        in_outputs = model(**input_only)
+        out_outputs = model(**output_only)
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(B), fl_index]
-        nl_state = hidden_states[torch.arange(B), nl_index]
+        fl_state = in_outputs.hidden_states[torch.arange(B), torch.sum(inputs["input_mask"])]
+        nl_state = out_outputs.hidden_states[torch.arange(B), torch.sum(inputs["output_mask"])]
 
         # Do mean Log Softmax over the cosine similarity
         cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
@@ -154,9 +154,11 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
         return {"text": prompts}
 
     def tokenize(examples):
+        input_only = tokenizer(examples["input"], padding=False)
+        output_only = tokenizer(examples["output"], padding=False)
         batch = tokenizer(examples["text"], padding=False)
         batch["input_length"] = examples["input_length"]
-        if 'label' in examples:
+        if "label" in examples:
             batch["aligned"] = examples["label"]
         return batch
 
@@ -166,9 +168,7 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
 
     dataset = dataset.map(apply_template, batched=True)
     dataset = dataset.map(tokenize, batched=True)
-    dataset = dataset.filter(
-        lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
-    )
+    dataset = dataset.filter(lambda ex: len(ex["input_ids"]) <= max_tokens)
     return dataset  # type:ignore
 
 
@@ -178,7 +178,7 @@ class CustomCollator(DataCollatorForLanguageModeling):
             input_length = examples["input_length"]
         else:
             input_length = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
-        if 'aligned' in examples[0]:
+        if "aligned" in examples[0]:
             labels = [ex.pop("aligned") for ex in examples]
         else:
             labels = None
@@ -198,9 +198,12 @@ class FormalAlignModel(nn.Module):
         self.model = model
 
     def alignment_score(self, **inputs):
+        B, N = inputs["input_ids"].shape
+
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
-        outputs = self.model.forward(**inputs)
+        outputs = self.model(inputs)
+        logits = outputs.logits
 
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
@@ -211,22 +214,23 @@ class FormalAlignModel(nn.Module):
         nl_index = inputs["input_length"] - 3
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
-        batch_size = logits.size(0)
-        certainty_score = torch.zeros(batch_size, dtype=logits.dtype, device=logits.device)
+        certainty_score = torch.zeros(B, dtype=logits.dtype, device=logits.device)
         for i, (sequence, start, stop) in enumerate(zip(logits, nl_index + 1, fl_index)):
             log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
             max_token_prob = torch.max(log_probs, dim=-1).values
             certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(batch_size), fl_index]
-        nl_state = hidden_states[torch.arange(batch_size), nl_index]
+        fl_state = hidden_states[torch.arange(B), fl_index]
+        nl_state = hidden_states[torch.arange(B), nl_index]
 
         similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
         score = (similarity_score + certainty_score) / 2
-        ic(certainty_score, similarity_score, score, inputs['aligned'])
+        ic(certainty_score, similarity_score, score, inputs["aligned"])
 
-        return FormalAlignOutput(loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score)
+        return FormalAlignOutput(
+            loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
+        )
 
     def forward(self, **kwargs):
         score = self.alignment_score(**kwargs)
@@ -348,6 +352,7 @@ def test(
         include_for_metrics=["loss", "inputs"],
         label_names=["label", "aligned"],
     )
+
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     trainer = SFTTrainer(
@@ -358,17 +363,12 @@ def test(
         compute_metrics=compute_metrics,
         train_dataset=data[list(data.keys())[0]],
     )
+
     for split in data.keys():
-        # preds, labels, metrics = trainer.predict(test_dataset=data[split], metric_key_prefix=split)  # type:ignore
-        # pprint(metrics)
-        # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
-        #     json.dump(metrics, f)
-        metrics = trainer.evaluate(data[split].select(range(20)), metric_key_prefix=split)  # type:ignore
+        metrics = trainer.evaluate(data[split], metric_key_prefix=split)  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
-        # df = pd.DataFrame({"pred": preds, "label": labels})
-        # df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
 if __name__ == "__main__":
