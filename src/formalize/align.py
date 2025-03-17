@@ -37,6 +37,28 @@ DEBUG = bool(os.environ.get("DEBUG", "") != "")
 typer.core.rich = None
 app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
+def cosine_similarity_matrix(matrix1, matrix2):
+  """
+  Computes the cosine similarity between all pairs of rows in two matrices.
+
+  Args:
+    matrix1: A PyTorch tensor of shape (N, D).
+    matrix2: A PyTorch tensor of shape (M, D).
+
+  Returns:
+    A PyTorch tensor of shape (N, M) where each element (i, j) is the cosine
+    similarity between row i of matrix1 and row j of matrix2.
+  """
+
+  # Normalize rows to unit length
+  matrix1_normalized = F.normalize(matrix1, p=2, dim=1)
+  matrix2_normalized = F.normalize(matrix2, p=2, dim=1)
+
+  # Compute cosine similarity using matrix multiplication
+  similarity_matrix = torch.matmul(matrix1_normalized, matrix2_normalized.transpose(0, 1))
+
+  return similarity_matrix
+
 
 @dataclass
 class FormalAlignOutput(ModelOutput):
@@ -105,7 +127,6 @@ def load_model(
 
     return model, tokenizer
 
-
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         B, N = inputs["input_ids"].shape
@@ -123,11 +144,13 @@ class FastLanguageTrainer(SFTTrainer):
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(B), fl_index]
-        nl_state = hidden_states[torch.arange(B), nl_index]
+        fl_state = hidden_states[torch.arange(B), fl_index] # .view(B, 1, -1).expand(B, B, -1)
+        nl_state = hidden_states[torch.arange(B), nl_index] # .view(B, 1, -1).expand(B, B, -1)
 
         # Do mean Log Softmax over the cosine similarity
-        cos = F.cosine_similarity(fl_state, nl_state, dim=-1)
+        # cos = F.cosine_similarity(fl_state[None,:,:], nl_state[:,None,:], dim=-1) # we want pairwise cosine similarity, which is what this wacky indexing does
+        cos = cosine_similarity_matrix(fl_state, nl_state)
+        ic(cos, F.log_softmax(cos, dim=-1))
         cl_loss = -torch.mean(F.log_softmax(cos, dim=-1))
 
         # loss = cross entropy + contrastive loss
@@ -224,7 +247,6 @@ class FormalAlignModel(nn.Module):
 
         similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
         score = (similarity_score + certainty_score) / 2
-        ic(certainty_score, similarity_score, score, inputs["aligned"])
 
         return FormalAlignOutput(
             loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
@@ -279,17 +301,19 @@ def train(
         adam_beta1=0.9,
         adam_beta2=0.99,
         weight_decay=0.0,
-        warmup_ratio=0.03,
+        warmup_ratio=0.00,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=10,
+        logging_steps=5,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=500,
-        eval_steps=500,
+        eval_steps=50,
+        eval_strategy='steps',
+        save_strategy='steps',
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
@@ -304,8 +328,9 @@ def train(
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
-        train_dataset=data["train"],
-        eval_dataset=test_data["forml4_basic"],
+        train_dataset=test_data["forml4_basic"].select(range(20)),
+        # eval_dataset=test_data["forml4_basic"].select(range(20)),
+        eval_dataset=test_data["forml4_basic"].select(range(20)),
     )
     trainer.train()
     trainer.save_model(output_dir)
