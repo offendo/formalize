@@ -13,4 +13,4 @@ python src/formalize/align.py train \
     --seed 1234 \
     --learning-rate "2e-5" --scheduler "cosine" --optimizer "paged_adamw_4bit" \
     --num-epochs 6 \
-    --batch-size 64 --gradient-accumulation 4
+    --batch-size 64 --gradient-accumulation 4 --lora-rank 128
