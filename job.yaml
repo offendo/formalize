@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-3090-full
+  name: nilay-formalize-bs64-3090
 spec:
   template:
     spec:
@@ -13,8 +13,8 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      #  - NVIDIA-GeForce-RTX-3090
-                      #  - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-GeForce-RTX-3090
+                      - NVIDIA-GeForce-RTX-4090
                       - NVIDIA-A100-SXM4-80GB
                       - NVIDIA-A100-80GB-PCIe
                       - NVIDIA-A100-80GB-PCIe
@@ -39,12 +39,12 @@ spec:
           resources:
             limits:
               memory: 32Gi
-              cpu: 4
-              nvidia.com/gpu: "8"
+              cpu: 2
+              nvidia.com/gpu: "6"
             requests:
               memory: 32Gi
-              cpu: 4
-              nvidia.com/gpu: "8"
+              cpu: 2
+              nvidia.com/gpu: "6"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0
