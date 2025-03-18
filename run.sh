@@ -11,6 +11,6 @@ python src/formalize/align.py train \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
     --seed 1234 \
-    --learning-rate "2e-5" --scheduler "cosine" --optimizer "paged_adamw_8bit" \
+    --learning-rate "2e-5" --scheduler "cosine" --optimizer "adamw_torch_4bit" \
     --num-epochs 6 \
-    --batch-size 128 --gradient-accumulation 2 --lora-rank 128
+    --batch-size 64 --gradient-accumulation 4 --lora-rank 128
