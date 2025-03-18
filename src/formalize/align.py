@@ -37,27 +37,28 @@ DEBUG = bool(os.environ.get("DEBUG", "") != "")
 typer.core.rich = None
 app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
+
 def cosine_similarity_matrix(matrix1, matrix2):
-  """
-  Computes the cosine similarity between all pairs of rows in two matrices.
+    """
+    Computes the cosine similarity between all pairs of rows in two matrices.
 
-  Args:
-    matrix1: A PyTorch tensor of shape (N, D).
-    matrix2: A PyTorch tensor of shape (M, D).
+    Args:
+      matrix1: A PyTorch tensor of shape (N, D).
+      matrix2: A PyTorch tensor of shape (M, D).
 
-  Returns:
-    A PyTorch tensor of shape (N, M) where each element (i, j) is the cosine
-    similarity between row i of matrix1 and row j of matrix2.
-  """
+    Returns:
+      A PyTorch tensor of shape (N, M) where each element (i, j) is the cosine
+      similarity between row i of matrix1 and row j of matrix2.
+    """
 
-  # Normalize rows to unit length
-  matrix1_normalized = F.normalize(matrix1, p=2, dim=1)
-  matrix2_normalized = F.normalize(matrix2, p=2, dim=1)
+    # Normalize rows to unit length
+    matrix1_normalized = F.normalize(matrix1, p=2, dim=1)
+    matrix2_normalized = F.normalize(matrix2, p=2, dim=1)
 
-  # Compute cosine similarity using matrix multiplication
-  similarity_matrix = torch.matmul(matrix1_normalized, matrix2_normalized.transpose(0, 1))
+    # Compute cosine similarity using matrix multiplication
+    similarity_matrix = torch.matmul(matrix1_normalized, matrix2_normalized.transpose(0, 1))
 
-  return similarity_matrix
+    return similarity_matrix
 
 
 @dataclass
@@ -127,6 +128,7 @@ def load_model(
 
     return model, tokenizer
 
+
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         B, N = inputs["input_ids"].shape
@@ -154,7 +156,7 @@ class FastLanguageTrainer(SFTTrainer):
             certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
         # Do mean Log Softmax over the cosine similarity
-        cos = cosine_similarity_matrix(nl_state, fl_state) # nl_state = BxD, fl_state = BxD
+        cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
 
         # we want to maxize each of cos[i,i]
         TAU = 0.5
@@ -164,7 +166,6 @@ class FastLanguageTrainer(SFTTrainer):
 
         similarity_score = torch.diagonal(cos)
         score = (similarity_score + certainty_score) / 2
-        ic(numerator, denominator, cl_loss, score)
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -172,7 +173,7 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["cl_loss"].append(cl_loss.item())
         self._metrics["total_loss"].append(loss.item())
 
-        new_outputs =  FormalAlignOutput(
+        new_outputs = FormalAlignOutput(
             loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
         )
         return (loss, new_outputs) if return_outputs else loss
@@ -318,7 +319,7 @@ def train(
         adam_beta1=0.9,
         adam_beta2=0.99,
         weight_decay=0.0,
-        warmup_ratio=0.00,
+        warmup_ratio=0.03,
         lr_scheduler_type=scheduler,
         optim=optimizer,
         logging_steps=5,
@@ -328,9 +329,9 @@ def train(
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=500,
-        eval_steps=25,
-        eval_strategy='steps',
-        save_strategy='steps',
+        eval_steps=500,
+        eval_strategy="steps",
+        save_strategy="steps",
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         max_seq_length=max_tokens,
@@ -346,7 +347,7 @@ def train(
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
-        train_dataset=test_data["forml4_basic"].select(range(20)),
+        train_dataset=data["train"],
         compute_metrics=compute_metrics,
         eval_dataset=test_data["forml4_basic"].select(range(20)),
     )
@@ -408,7 +409,7 @@ def test(
         # pprint(metrics)
         # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
         #     json.dump(metrics, f)
-        metrics = trainer.evaluate(data[split].select(range(20)), metric_key_prefix=split)  # type:ignore
+        metrics = trainer.evaluate(data[split].select(range(100)), metric_key_prefix=split)  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
