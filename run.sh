@@ -17,4 +17,5 @@ python src/formalize/align.py train \
     --seed $SEED \
     --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
     --num-epochs $EPOCHS \
-    --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC --lora-rank $LORA_RANK
+    --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC --gradient-checkpointing $GRAD_CKPT\
+    --lora-rank $LORA_RANK

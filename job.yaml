@@ -39,11 +39,13 @@ spec:
             - name: EPOCHS
               value: "6"
             - name: BATCH_SIZE
-              value: 16
+              value: "16"
             - name: GRAD_ACC
-              value: 32
+              value: "32"
+            - name: GRAD_CKPT
+              value: "False"
             - name: LORA_RANK
-              value: 128
+              value: "128"
           volumeMounts:
             - name: git-repo
               mountPath: /app
