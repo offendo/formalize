@@ -144,21 +144,38 @@ class FastLanguageTrainer(SFTTrainer):
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(B), fl_index] # .view(B, 1, -1).expand(B, B, -1)
-        nl_state = hidden_states[torch.arange(B), nl_index] # .view(B, 1, -1).expand(B, B, -1)
+        fl_state = hidden_states[torch.arange(B), fl_index]
+        nl_state = hidden_states[torch.arange(B), nl_index]
+
+        certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
+        for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
+            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
+            max_token_prob = torch.max(log_probs, dim=-1).values
+            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
         # Do mean Log Softmax over the cosine similarity
-        # cos = F.cosine_similarity(fl_state[None,:,:], nl_state[:,None,:], dim=-1) # we want pairwise cosine similarity, which is what this wacky indexing does
-        cos = cosine_similarity_matrix(fl_state, nl_state)
-        ic(cos, F.log_softmax(cos, dim=-1))
-        cl_loss = -torch.mean(F.log_softmax(cos, dim=-1))
+        cos = cosine_similarity_matrix(nl_state, fl_state) # nl_state = BxD, fl_state = BxD
+
+        # we want to maxize each of cos[i,i]
+        TAU = 0.5
+        numerator = torch.exp(torch.diagonal(cos / TAU))
+        denominator = torch.sum(torch.exp(cos / TAU), dim=0)
+        cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
+
+        similarity_score = torch.diagonal(cos)
+        score = (similarity_score + certainty_score) / 2
+        ic(numerator, denominator, cl_loss, score)
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(ce_loss.item())
         self._metrics["cl_loss"].append(cl_loss.item())
         self._metrics["total_loss"].append(loss.item())
-        return (loss, outputs) if return_outputs else loss
+
+        new_outputs =  FormalAlignOutput(
+            loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
+        )
+        return (loss, new_outputs) if return_outputs else loss
 
 
 def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048) -> DatasetDict:
@@ -311,7 +328,7 @@ def train(
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=500,
-        eval_steps=50,
+        eval_steps=25,
         eval_strategy='steps',
         save_strategy='steps',
         report_to="wandb",  # Can use Weights & Biases
@@ -319,6 +336,7 @@ def train(
         max_seq_length=max_tokens,
         remove_unused_columns=False,
         include_for_metrics=["loss", "inputs"],
+        label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
@@ -329,7 +347,7 @@ def train(
         args=training_args,
         data_collator=collator,
         train_dataset=test_data["forml4_basic"].select(range(20)),
-        # eval_dataset=test_data["forml4_basic"].select(range(20)),
+        compute_metrics=compute_metrics,
         eval_dataset=test_data["forml4_basic"].select(range(20)),
     )
     trainer.train()
