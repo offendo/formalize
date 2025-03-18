@@ -1,13 +1,18 @@
-huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
-wandb login $(cat /etc/api-tokens/wandb-token)
+# huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
+# wandb login $(cat /etc/api-tokens/wandb-token)
+# 
+# pip install torchao
+# 
+# export WANDB_PROJECT='formal-align'
+# export WANDB_RUN='with_eval_bs32ga16'
+# 
+# export SEED=1234
 
-pip install torchao
-
-export WANDB_PROJECT='formal-align'
-export WANDB_RUN='with_eval_bs32ga16'
-
-export SEED=1234
-
+if [[ $GRAD_CKPT = "False" ]]; then
+  export GRAD_CKPT=""
+else
+  export GRAD_CKPT="--gradient-checkpointing"
+fi
 python src/formalize/align.py train \
     --model-name "meta-llama/Meta-Llama-3.1-8B" \
     --dataset "offendo/formal-align-redux" \
@@ -17,5 +22,6 @@ python src/formalize/align.py train \
     --seed $SEED \
     --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
     --num-epochs $EPOCHS \
-    --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC --gradient-checkpointing $GRAD_CKPT\
+    --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
+    $GRAD_CKPT \
     --lora-rank $LORA_RANK
