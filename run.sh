@@ -19,7 +19,7 @@ python src/formalize/align.py train \
     --eval-dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
-    --seed $SEED \
+    --seed 1234 \
     --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
     --num-epochs $EPOCHS \
     --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
