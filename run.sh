@@ -4,7 +4,9 @@ wandb login $(cat /etc/api-tokens/wandb-token)
 pip install torchao
 
 export WANDB_PROJECT='formal-align'
-export WANDB_RUN='with_eval_bs64ga4'
+export WANDB_RUN='with_eval_bs32ga16'
+
+export SEED=1234
 
 python src/formalize/align.py train \
     --model-name "meta-llama/Meta-Llama-3.1-8B" \
@@ -12,7 +14,7 @@ python src/formalize/align.py train \
     --eval-dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
-    --seed 1234 \
-    --learning-rate "2e-5" --scheduler "cosine" --optimizer "adamw_torch_4bit" \
-    --num-epochs 6 \
-    --batch-size 64 --gradient-accumulation 4 --lora-rank 128
+    --seed $SEED \
+    --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
+    --num-epochs $EPOCHS \
+    --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC --lora-rank $LORA_RANK
