@@ -173,7 +173,7 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["total_loss"].append(loss.item())
 
         new_outputs = FormalAlignOutput(
-            loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
+            loss=loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
         )
         return (loss, new_outputs) if return_outputs else loss
 
