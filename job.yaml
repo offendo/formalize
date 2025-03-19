@@ -33,7 +33,7 @@ spec:
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
-              value: "adamw_torch_4bit"
+              value: "paged_adamw_8bit"
             - name: SCHEDULER
               value: "cosine"
             - name: EPOCHS
@@ -57,11 +57,11 @@ spec:
             limits:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "6"
+              nvidia.com/gpu: "4"
             requests:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "6"
+              nvidia.com/gpu: "4"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

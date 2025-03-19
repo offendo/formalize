@@ -301,7 +301,7 @@ def train(
     num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 1,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
-    gradient_checkpointing: Annotated[bool, Option(help="gradient checkpointing", rich_help_panel="Training Config")] = True,
+    gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
