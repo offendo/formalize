@@ -8,10 +8,10 @@ export WANDB_RUN='with_eval_bs32ga16'
 
 export SEED=1234
 
-if [[ $GRAD_CKPT = "False" ]]; then
-  export GRAD_CKPT=""
-else
+if [[ $GRAD_CKPT = "True" ]]; then
   export GRAD_CKPT="--gradient-checkpointing"
+else
+  export GRAD_CKPT=""
 fi
 
 python src/formalize/align.py train \
