@@ -4,7 +4,6 @@ wandb login $(cat /etc/api-tokens/wandb-token)
 pip install torchao
 
 export WANDB_PROJECT='formal-align'
-export WANDB_RUN='with_eval_bs32ga16'
 
 export SEED=1234
 
