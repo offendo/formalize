@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-bs64-a100
+  name: nilay-formalize-test
 spec:
   template:
     spec:
@@ -13,12 +13,12 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      # - NVIDIA-GeForce-RTX-3090
-                      # - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-GeForce-RTX-3090
+                      - NVIDIA-GeForce-RTX-4090
                       - NVIDIA-A100-SXM4-80GB
                       - NVIDIA-A100-80GB-PCIe
                       - NVIDIA-A100-80GB-PCIe
-                      # - NVIDIA-A40
+                      - NVIDIA-A40
                         # - key: nvidia.com/cuda.driver.major
                         #   operator: In
                         #   values: ["525", "530", "535"]
@@ -27,27 +27,11 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run.sh"]
+          command: ["bash", "test.sh"]
           workingDir: /app/formalize
           env:
             - name: WANDB_RUN
               value: "bs8"
-            - name: LR
-              value: "2e-5"
-            - name: OPTIMIZER
-              value: "paged_adamw_8bit"
-            - name: SCHEDULER
-              value: "cosine"
-            - name: EPOCHS
-              value: "6"
-            - name: BATCH_SIZE
-              value: "16"
-            - name: GRAD_ACC
-              value: "64"
-            - name: GRAD_CKPT
-              value: "False"
-            - name: LORA_RANK
-              value: "128"
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -59,11 +43,11 @@ spec:
             limits:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "1"
             requests:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "1"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0
