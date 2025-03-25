@@ -111,7 +111,7 @@ def load_model(
             device_map="auto",
         )
         if adapter_name:
-            model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False, )
+            model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
         elif lora_rank != -1:
             peft_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
@@ -382,8 +382,6 @@ def test(
         adapter_name=adapter_name,
     )
 
-    model = FormalAlignModel(base_model)
-
     training_args = SFTConfig(
         logging_steps=10,
         bf16=torch.cuda.is_bf16_supported(),
@@ -412,7 +410,9 @@ def test(
         # pprint(metrics)
         # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
         #     json.dump(metrics, f)
-        metrics = trainer.evaluate(data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split)  # type:ignore
+        metrics = trainer.evaluate(
+            data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split
+        )  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)

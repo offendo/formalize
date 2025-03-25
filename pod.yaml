@@ -11,7 +11,10 @@ spec:
               - key: nvidia.com/gpu.product
                 operator: In
                 values:
-                  - NVIDIA-GeForce-RTX-3090
+                  # - NVIDIA-GeForce-RTX-4090
+                  - NVIDIA-A100-SXM4-80GB
+                  - NVIDIA-A100-80GB-PCIe
+                  - NVIDIA-A100-PCIE-40GB
   imagePullSecrets:
     - name: nilay-ghcr-key
   containers:
@@ -30,13 +33,13 @@ spec:
           mountPath: /etc/api-tokens
       resources:
         limits:
-          memory: 32Gi
-          cpu: 4
-          nvidia.com/gpu: "2"
+          memory: 24Gi
+          cpu: 1
+          nvidia.com/gpu: "1"
         requests:
-          memory: 32Gi
-          cpu: 4
-          nvidia.com/gpu: "2"
+          memory: 24Gi
+          cpu: 1
+          nvidia.com/gpu: "1"
   initContainers:
     - name: git-sync
       image: registry.k8s.io/git-sync/git-sync:v4.1.0
