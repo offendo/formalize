@@ -82,11 +82,11 @@ def load_model(
         from unsloth import FastLanguageModel
 
         model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=model_name,
+            model_name=adapter_name or model_name,
             max_seq_length=max_length,
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
-            # fast_inference=True,  # Enable vLLM fast inference
-            fast_inference=False,  # Enable vLLM fast inference
+            fast_inference=True,  # Enable vLLM fast inference
+            # fast_inference=False,  # Enable vLLM fast inference
             max_lora_rank=lora_rank if lora_rank != -1 else 64,
             gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
         )
@@ -411,7 +411,7 @@ def test(
         # pprint(metrics)
         # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
         #     json.dump(metrics, f)
-        metrics = trainer.evaluate(data[split].select(range(100)), metric_key_prefix=split)  # type:ignore
+        metrics = trainer.evaluate(data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split)  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)

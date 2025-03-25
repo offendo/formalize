@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-bs64-a100
+  name: nilay-formalize-train
 spec:
   template:
     spec:
