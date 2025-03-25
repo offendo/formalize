@@ -24,7 +24,7 @@ from transformers import (
 from transformers.utils import ModelOutput
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
-from peft import LoraConfig, get_peft_model, TaskType
+from peft import LoraConfig, get_peft_model, TaskType, PeftModel
 from sklearn.metrics import precision_recall_fscore_support
 
 import torch
@@ -84,9 +84,8 @@ def load_model(
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=adapter_name or model_name,
             max_seq_length=max_length,
-            load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
-            fast_inference=True,  # Enable vLLM fast inference
-            # fast_inference=False,  # Enable vLLM fast inference
+            load_in_8bit=True,  # if we're using LoRA, load in 4 bit mode
+            fast_inference=False,  # Enable vLLM fast inference
             max_lora_rank=lora_rank if lora_rank != -1 else 64,
             gpu_memory_utilization=gpu_memory_utilization,  # Reduce if out of memory
         )
@@ -111,7 +110,9 @@ def load_model(
             torch_dtype=torch.bfloat16,
             device_map="auto",
         )
-        if lora_rank != -1:
+        if adapter_name:
+            model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False, )
+        elif lora_rank != -1:
             peft_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
                 inference_mode=False,

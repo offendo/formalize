@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-test-2
+  name: nilay-formalize-test
 spec:
   template:
     spec:
