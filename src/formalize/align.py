@@ -159,7 +159,7 @@ class FastLanguageTrainer(SFTTrainer):
         cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
 
         # we want to maxize each of cos[i,i]
-        TAU = 0.5
+        TAU = 0.9
         numerator = torch.exp(torch.diagonal(cos / TAU))
         denominator = torch.sum(torch.exp(cos / TAU), dim=0)
         cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
@@ -303,6 +303,7 @@ def train(
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
     gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
+    eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
@@ -327,7 +328,7 @@ def train(
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=2,
+        per_device_eval_batch_size=1,
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         gradient_checkpointing=gradient_checkpointing,
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
@@ -345,6 +346,8 @@ def train(
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
+    test_data = test_data.shuffle(seed=seed)
+    test_data = Dataset.from_list([example for key in test_data.keys() for example in test_data[key].select(range(100))])
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
@@ -352,7 +355,7 @@ def train(
         data_collator=collator,
         train_dataset=data["train"],
         compute_metrics=compute_metrics,
-        eval_dataset=test_data["forml4_basic"].select(range(20)),
+        eval_dataset=test_data,
     )
     trainer.train()
     trainer.save_model(output_dir)
@@ -372,7 +375,7 @@ def test(
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
-    base_model, tokenizer = load_model(
+    model, tokenizer = load_model(
         model_name,
         max_length=max_tokens,
         lora_rank=-1,
@@ -397,7 +400,7 @@ def test(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
-    trainer = SFTTrainer(
+    trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
