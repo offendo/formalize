@@ -24,4 +24,4 @@ python src/formalize/align.py train \
     --num-epochs $EPOCHS \
     --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
     $GRAD_CKPT \
-    --lora-rank $LORA_RANK
+    --lora-rank $LORA_RANK --eval-steps $EVAL_STEPS

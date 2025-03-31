@@ -13,12 +13,12 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      # - NVIDIA-GeForce-RTX-3090
-                      # - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-GeForce-RTX-3090
+                      - NVIDIA-GeForce-RTX-4090
                       - NVIDIA-A100-SXM4-80GB
                       - NVIDIA-A100-80GB-PCIe
                       - NVIDIA-A100-80GB-PCIe
-                      # - NVIDIA-A40
+                      - NVIDIA-A40
                         # - key: nvidia.com/cuda.driver.major
                         #   operator: In
                         #   values: ["525", "530", "535"]
@@ -39,11 +39,13 @@ spec:
             - name: SCHEDULER
               value: "cosine"
             - name: EPOCHS
-              value: "6"
+              value: "2"
             - name: BATCH_SIZE
               value: "16"
             - name: GRAD_ACC
-              value: "64"
+              value: "32"
+            - name: EVAL_STEPS
+              value: "5"
             - name: GRAD_CKPT
               value: "False"
             - name: LORA_RANK
@@ -59,11 +61,11 @@ spec:
             limits:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "6"
             requests:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "6"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

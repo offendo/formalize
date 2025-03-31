@@ -335,8 +335,8 @@ def train(
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         gradient_checkpointing=gradient_checkpointing,
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
-        save_steps=500,
-        eval_steps=500,
+        save_steps=eval_steps,
+        eval_steps=eval_steps,
         eval_strategy="steps",
         save_strategy="steps",
         report_to="wandb",  # Can use Weights & Biases
