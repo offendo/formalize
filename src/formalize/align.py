@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import json
+import pickle
 import pandas as pd
 from dataclasses import dataclass
 from pathlib import Path
@@ -159,7 +160,7 @@ class FastLanguageTrainer(SFTTrainer):
         cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
 
         # we want to maxize each of cos[i,i]
-        TAU = 0.9
+        TAU = 1.0
         numerator = torch.exp(torch.diagonal(cos / TAU))
         denominator = torch.sum(torch.exp(cos / TAU), dim=0)
         cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
@@ -172,6 +173,8 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["ce_loss"].append(ce_loss.item())
         self._metrics["cl_loss"].append(cl_loss.item())
         self._metrics["total_loss"].append(loss.item())
+        self._metrics["similarity_score"].append(similarity_score.mean().item())
+        self._metrics["certainty_score"].append(certainty_score.mean().item())
 
         new_outputs = FormalAlignOutput(
             loss=loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
@@ -409,16 +412,12 @@ def test(
         train_dataset=data[list(data.keys())[0]],
     )
     for split in data.keys():
-        # preds, labels, metrics = trainer.predict(test_dataset=data[split], metric_key_prefix=split)  # type:ignore
-        # pprint(metrics)
-        # with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
-        #     json.dump(metrics, f)
-        metrics = trainer.evaluate(
-            data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split
-        )  # type:ignore
+        preds, labels, metrics = trainer.predict(data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split)
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
+        with open(Path(output_dir, f"{split}_outputs.pkl"), "w") as f:
+            pickle.dump({'labels': labels, 'preds': preds}, f)
         # df = pd.DataFrame({"pred": preds, "label": labels})
         # df.to_json(Path(output_dir, f"{split}_preds.json"))
 
