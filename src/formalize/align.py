@@ -20,6 +20,7 @@ from transformers import (
     TrainingArguments,
     AutoModelForCausalLM,
     AutoTokenizer,
+    AutoConfig,
     Trainer,
 )
 from transformers.utils import ModelOutput
@@ -76,9 +77,11 @@ def load_model(
     gpu_memory_utilization: float,
     seed: int,
     unsloth: bool = False,
-    vllm: bool = False,
     adapter_name: str | None = None,
+    debug: bool = False,
 ):
+    if unsloth and debug:
+        raise NotImplementedError("Can't debug in unsloth mode because the model sizes are fixed.")
     if unsloth:
         from unsloth import FastLanguageModel
 
@@ -103,6 +106,32 @@ def load_model(
                 lora_dropout=0,
                 random_state=seed,
             )
+    elif debug:
+        config = AutoConfig.from_pretrained(model_name)
+        config.hidden_size = 32
+        config.intermediate_size = 128
+        config.num_hidden_layers = 4
+        config.num_hidden_layers = 4
+        config.num_attention_heads = 4
+        model = AutoModelForCausalLM.from_config(
+            config,
+            load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        if adapter_name:
+            model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
+        elif lora_rank != -1:
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                inference_mode=False,
+                r=lora_rank,
+                lora_alpha=32,
+                lora_dropout=0.1,
+                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+            )
+            model = get_peft_model(model, peft_config)
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -308,6 +337,7 @@ def train(
     gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
     eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
+    debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
     model, tokenizer = load_model(
@@ -317,6 +347,7 @@ def train(
         gpu_memory_utilization=gpu_memory_utilization,
         seed=seed,
         unsloth=unsloth,
+        debug=debug,
     )
 
     training_args = SFTConfig(
@@ -350,7 +381,9 @@ def train(
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
     test_data = test_data.shuffle(seed=seed)
-    test_data = Dataset.from_list([example for key in test_data.keys() for example in test_data[key].select(range(100))])
+    test_data = Dataset.from_list(
+        [example for key in test_data.keys() for example in test_data[key].select(range(100))]
+    )
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
@@ -412,12 +445,14 @@ def test(
         train_dataset=data[list(data.keys())[0]],
     )
     for split in data.keys():
-        preds, labels, metrics = trainer.predict(data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split)
+        preds, labels, metrics = trainer.predict(
+            data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split
+        )
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "w") as f:
-            pickle.dump({'labels': labels, 'preds': preds}, f)
+            pickle.dump({"labels": labels, "preds": preds}, f)
         # df = pd.DataFrame({"pred": preds, "label": labels})
         # df.to_json(Path(output_dir, f"{split}_preds.json"))
 
