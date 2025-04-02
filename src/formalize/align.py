@@ -272,10 +272,17 @@ def compute_metrics(evals: EvalPrediction):
     # This is the cutoff given by the FormalAlign paper
     CUTOFF = 0.7
 
-    (logits, scores), (_, labels), inputs, losses = evals
+    scores, (_, labels), inputs, losses = evals
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="micro")
     return {"precision": p, "recall": r, "f1": f1}
+
+
+def preprocess_logits_for_metrics(logits, labels):
+    if isinstance(logits, tuple):
+        logits, scores = logits
+        return scores
+    return logits
 
 
 @app.command()
@@ -353,6 +360,7 @@ def train(
         train_dataset=data["train"],
         compute_metrics=compute_metrics,
         eval_dataset=test_data,
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     trainer.train()
     trainer.save_model(output_dir)
@@ -404,6 +412,7 @@ def test(
         data_collator=collator,
         compute_metrics=compute_metrics,
         train_dataset=data[list(data.keys())[0]],
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     for split in data.keys():
         preds, labels, metrics = trainer.predict(
