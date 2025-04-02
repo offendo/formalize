@@ -275,7 +275,7 @@ def compute_metrics(evals: EvalPrediction):
 
     scores, (_, labels), inputs, losses = evals
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
-    p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="micro")
+    p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
     return {"precision": p, "recall": r, "f1": f1}
 
 
