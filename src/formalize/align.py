@@ -166,6 +166,7 @@ class FastLanguageTrainer(SFTTrainer):
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
+        ce_loss = ce_loss.mean()
 
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
