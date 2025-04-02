@@ -23,12 +23,33 @@ spec:
       image: ghcr.io/offendo/formalize:latest
       command: ["sleep", "infinity"]
       workingDir: /app/formalize
+      env:
+        - name: WANDB_RUN
+          value: "bs8_short"
+        - name: LR
+          value: "5e-5"
+        - name: OPTIMIZER
+          value: "paged_adamw_8bit"
+        - name: SCHEDULER
+          value: "cosine"
+        - name: EPOCHS
+          value: "2"
+        - name: BATCH_SIZE
+          value: "8"
+        - name: GRAD_ACC
+          value: "4"
+        - name: EVAL_STEPS
+          value: "5"
+        - name: GRAD_CKPT
+          value: "False"
+        - name: LORA_RANK
+          value: "256"
       volumeMounts:
         - mountPath: /dev/shm
           name: dshm
         - name: git-repo
           mountPath: /app
-        - name: nilay-data-volume-rwm
+        - name: nilay-data-volume-rwm-central
           mountPath: /volume
         - name: api-tokens
           mountPath: /etc/api-tokens
@@ -58,7 +79,7 @@ spec:
       image: alpine:latest
       command: ["chmod", "-R", "a+rw", "/volume"]
       volumeMounts:
-        - name: nilay-data-volume-rwm
+        - name: nilay-data-volume-rwm-central
           mountPath: /volume
   securityContext:
     fsGroup: 101
@@ -68,9 +89,9 @@ spec:
         medium: Memory
     - name: git-repo
       emptyDir: {}
-    - name: nilay-data-volume-rwm
+    - name: nilay-data-volume-rwm-central
       persistentVolumeClaim:
-        claimName: nilay-data-volume-rwm
+        claimName: nilay-data-volume-rwm-central
     - name: git-secret
       secret:
         defaultMode: 0400

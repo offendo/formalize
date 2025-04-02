@@ -66,7 +66,7 @@ def cosine_similarity_matrix(matrix1, matrix2):
 class FormalAlignOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
-    hidden_states: Optional[tuple[torch.FloatTensor]] = None
+    # hidden_states: Optional[tuple[torch.FloatTensor]] = None
     predictions: torch.FloatTensor = None
 
 
@@ -111,14 +111,12 @@ def load_model(
         config.hidden_size = 32
         config.intermediate_size = 128
         config.num_hidden_layers = 4
-        config.num_hidden_layers = 4
         config.num_attention_heads = 4
+        config.num_key_value_heads = 4
         model = AutoModelForCausalLM.from_config(
             config,
-            load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
-            device_map="auto",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -132,6 +130,9 @@ def load_model(
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
             )
             model = get_peft_model(model, peft_config)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token_id = tokenizer.eos_token_id
     else:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -188,8 +189,8 @@ class FastLanguageTrainer(SFTTrainer):
         # Do mean Log Softmax over the cosine similarity
         cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
 
+        TAU = 0.7
         # we want to maxize each of cos[i,i]
-        TAU = 1.0
         numerator = torch.exp(torch.diagonal(cos / TAU))
         denominator = torch.sum(torch.exp(cos / TAU), dim=0)
         cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
@@ -205,9 +206,7 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["similarity_score"].append(similarity_score.mean().item())
         self._metrics["certainty_score"].append(certainty_score.mean().item())
 
-        new_outputs = FormalAlignOutput(
-            loss=loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
-        )
+        new_outputs = FormalAlignOutput(loss=loss, logits=outputs.logits, predictions=score)
         return (loss, new_outputs) if return_outputs else loss
 
 
@@ -298,9 +297,7 @@ class FormalAlignModel(nn.Module):
         similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
         score = (similarity_score + certainty_score) / 2
 
-        return FormalAlignOutput(
-            loss=outputs.loss, logits=outputs.logits, hidden_states=outputs.hidden_states, predictions=score
-        )
+        return FormalAlignOutput(loss=outputs.loss, logits=outputs.logits, predictions=score)
 
     def forward(self, **kwargs):
         score = self.alignment_score(**kwargs)
@@ -311,7 +308,7 @@ def compute_metrics(evals: EvalPrediction):
     # This is the cutoff given by the FormalAlign paper
     CUTOFF = 0.7
 
-    (logits, hidden_states, scores), (_, labels), inputs, losses = evals
+    (logits, scores), (_, labels), inputs, losses = evals
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="micro")
     return {"precision": p, "recall": r, "f1": f1}
