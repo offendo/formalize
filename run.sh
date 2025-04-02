@@ -14,7 +14,7 @@ else
 fi
 
 python src/formalize/align.py train \
-    --model-name "meta-llama/Meta-Llama-3.1-8B" \
+    --model-name $MODEL_NAME \
     --dataset "offendo/formal-align-redux" \
     --eval-dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \

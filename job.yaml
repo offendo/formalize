@@ -30,6 +30,8 @@ spec:
           command: ["bash", "run.sh"]
           workingDir: /app/formalize
           env:
+            - name: MODEL_NAME
+              value: "meta-llama/Meta-Llama-3.1-8B"
             - name: WANDB_RUN
               value: "bs8_short"
             - name: LR
@@ -53,17 +55,17 @@ spec:
           volumeMounts:
             - name: git-repo
               mountPath: /app
-            - name: nilay-data-volume-rwm
+            - name: nilay-data-volume-rwm-central
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
           resources:
             limits:
-              memory: 128Gi
+              memory: 32Gi
               cpu: 2
               nvidia.com/gpu: "6"
             requests:
-              memory: 128Gi
+              memory: 32Gi
               cpu: 2
               nvidia.com/gpu: "6"
       initContainers:
@@ -97,16 +99,16 @@ spec:
               memory: 4Gi
               cpu: 1
           volumeMounts:
-            - name: nilay-data-volume-rwm
+            - name: nilay-data-volume-rwm-central
               mountPath: /volume
       securityContext:
         fsGroup: 101
       volumes:
         - name: git-repo
           emptyDir: {}
-        - name: nilay-data-volume-rwm
+        - name: nilay-data-volume-rwm-central
           persistentVolumeClaim:
-            claimName: nilay-data-volume-rwm
+            claimName: nilay-data-volume-rwm-central
         - name: git-secret
           secret:
             defaultMode: 0400
