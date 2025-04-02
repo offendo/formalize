@@ -66,7 +66,6 @@ def cosine_similarity_matrix(matrix1, matrix2):
 class FormalAlignOutput(ModelOutput):
     loss: Optional[torch.FloatTensor] = None
     logits: torch.FloatTensor = None
-    # hidden_states: Optional[tuple[torch.FloatTensor]] = None
     predictions: torch.FloatTensor = None
 
 
@@ -187,12 +186,17 @@ class FastLanguageTrainer(SFTTrainer):
             certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
         # Do mean Log Softmax over the cosine similarity
+        # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j
+        # So that means the diagonal is what we want to maximize, while minimizing everything else
         cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
 
-        TAU = 0.7
-        # we want to maxize each of cos[i,i]
+        TAU = 0.7  # This is given by FormalAlign authors
+
+        # numerator the similarities between matching values
         numerator = torch.exp(torch.diagonal(cos / TAU))
-        denominator = torch.sum(torch.exp(cos / TAU), dim=0)
+
+        # denominator is sum over j for each pair sim(NL_i, FL_j)
+        denominator = torch.sum(torch.exp(cos / TAU), dim=1)
         cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
 
         similarity_score = torch.diagonal(cos)
@@ -262,46 +266,6 @@ class CustomCollator(DataCollatorForLanguageModeling):
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
         return batch
-
-
-class FormalAlignModel(nn.Module):
-    def __init__(self, model: nn.Module):
-        super().__init__()
-        self.model = model
-
-    def alignment_score(self, **inputs):
-        # Cross entropy loss (autoformalization loss)
-        inputs["output_hidden_states"] = True
-        outputs = self.model.forward(**inputs)
-
-        # Last hidden state for contrastive loss
-        hidden_states = outputs.hidden_states[-1]  # type:ignore
-        logits = outputs.logits  # type:ignore
-
-        # Get the index of the end of the prompt, so we can get the representation of the natural language
-        # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
-        nl_index = inputs["input_length"] - 3
-        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
-
-        batch_size = logits.size(0)
-        certainty_score = torch.zeros(batch_size, dtype=logits.dtype, device=logits.device)
-        for i, (sequence, start, stop) in enumerate(zip(logits, nl_index + 1, fl_index)):
-            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
-            max_token_prob = torch.max(log_probs, dim=-1).values
-            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
-
-        # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(batch_size), fl_index]
-        nl_state = hidden_states[torch.arange(batch_size), nl_index]
-
-        similarity_score = F.cosine_similarity(fl_state, nl_state, dim=-1)
-        score = (similarity_score + certainty_score) / 2
-
-        return FormalAlignOutput(loss=outputs.loss, logits=outputs.logits, predictions=score)
-
-    def forward(self, **kwargs):
-        score = self.alignment_score(**kwargs)
-        return score
 
 
 def compute_metrics(evals: EvalPrediction):

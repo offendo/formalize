@@ -33,19 +33,19 @@ spec:
             - name: WANDB_RUN
               value: "bs8_short"
             - name: LR
-              value: "5e-5"
+              value: "2e-5"
             - name: OPTIMIZER
               value: "paged_adamw_8bit"
             - name: SCHEDULER
-              value: "cosine"
+              value: "constant_with_warmup"
             - name: EPOCHS
-              value: "2"
+              value: "3"
             - name: BATCH_SIZE
               value: "8"
             - name: GRAD_ACC
-              value: "4"
+              value: "8"
             - name: EVAL_STEPS
-              value: "5"
+              value: "500"
             - name: GRAD_CKPT
               value: "False"
             - name: LORA_RANK
