@@ -63,11 +63,11 @@ spec:
               mountPath: /etc/api-tokens
           resources:
             limits:
-              memory: 64Gi
+              memory: 32Gi
               cpu: 2
               nvidia.com/gpu: "6"
             requests:
-              memory: 64Gi
+              memory: 32Gi
               cpu: 2
               nvidia.com/gpu: "6"
       initContainers:

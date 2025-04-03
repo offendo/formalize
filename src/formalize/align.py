@@ -225,9 +225,9 @@ def load_data(
     END_OF_NL_ID = None
     END_OF_FL_ID = None
     if add_special_representation:
-        tokenizer.add_tokens(["<|end_of_nl|>", "<|end_of_fl|>"])
         END_OF_NL = "<|end_of_nl|>"
         END_OF_FL = "<|end_of_fl|>"
+        tokenizer.add_tokens([END_OF_NL, END_OF_FL])
         END_OF_NL_ID = tokenizer.convert_tokens_to_ids(END_OF_NL)
         END_OF_FL_ID = tokenizer.convert_tokens_to_ids(END_OF_FL)
 
@@ -236,12 +236,11 @@ def load_data(
         input_lengths = []
         for input, output in zip(examples["input"], examples["output"]):
             # Format input/output as a prompt
-            format_input = f"Statement in natural language:\n{input}"
-            format_output = f"\nTranslate the statement in natural language to Lean:\n{output}"
+            format_input = f"Statement in natural language:\n{input}\n"
+            format_output = f"Translate the statement in natural language to Lean:\n{output}"
             format_prompt = format_input + END_OF_NL + format_output + END_OF_FL + EOS
             prompts.append(format_prompt)
 
-            # Have to add 1 to ensure we include the <bos> token
             input_len = len(tokenizer(format_input, add_special_tokens=False).input_ids)
             input_lengths.append(input_len)
 
