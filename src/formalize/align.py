@@ -177,8 +177,8 @@ class FastLanguageTrainer(SFTTrainer):
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
         # Get the states for the end of the input (NL) and end out of the output (FL)
-        fl_state = hidden_states[torch.arange(B), fl_index]
         nl_state = hidden_states[torch.arange(B), nl_index]
+        fl_state = hidden_states[torch.arange(B), fl_index]
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
         for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
