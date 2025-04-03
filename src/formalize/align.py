@@ -181,9 +181,9 @@ class FastLanguageTrainer(SFTTrainer):
                 ic(start, stop, sequence.shape, log_probs, max_token_prob, certainty_score[i])
                 input()
 
-        if 'nl_token_index' in inputs:
-            nl_state = hidden_states[torch.arange(B), inputs['nl_token_index']]
-            fl_state = hidden_states[torch.arange(B), inputs['fl_token_index']]
+        if "nl_token_index" in inputs:
+            nl_state = hidden_states[torch.arange(B), inputs["nl_token_index"]]
+            fl_state = hidden_states[torch.arange(B), inputs["fl_token_index"]]
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
             nl_index = inputs["input_length"]
@@ -222,7 +222,9 @@ class FastLanguageTrainer(SFTTrainer):
         return (loss, new_outputs) if return_outputs else loss
 
 
-def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048, add_special_representation: bool = False) -> DatasetDict:
+def load_data(
+    dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048, add_special_representation: bool = False
+) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
     END_OF_NL = ""
     END_OF_FL = ""
@@ -251,19 +253,21 @@ def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int
 
         # Do tokenization here
         batch = tokenizer(prompts, padding=False)
-        batch['input_length'] = input_lengths
+        batch["input_length"] = input_lengths
         if "label" in examples:
             batch["aligned"] = examples["label"]
 
         if add_special_representation:
-            batch['nl_token_index'] = [example.index(END_OF_NL_ID) for example in batch['input_ids']]
-            batch['fl_token_index'] = [example.index(END_OF_FL_ID) for example in batch['input_ids']]
-            
+            batch["nl_token_index"] = [example.index(END_OF_NL_ID) for example in batch["input_ids"]]
+            batch["fl_token_index"] = [example.index(END_OF_FL_ID) for example in batch["input_ids"]]
+
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
     dataset = dataset.map(tokenize, batched=True)
-    dataset = dataset.filter(lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"])
+    dataset = dataset.filter(
+        lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
+    )
     return dataset  # type:ignore
 
 
@@ -367,12 +371,13 @@ def train(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
-    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
+    test_data = load_data(
+        eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation
+    )
     test_data = test_data.shuffle(seed=seed)
     test_data = Dataset.from_list(
         [example for key in test_data.keys() for example in test_data[key].select(range(100))]
     )
-    breakpoint()
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
