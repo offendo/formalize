@@ -172,27 +172,22 @@ class FastLanguageTrainer(SFTTrainer):
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
 
-        certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
-        for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
-            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
-            max_token_prob = torch.max(log_probs, dim=-1).values
-            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
-            if any(torch.isnan(certainty_score)):
-                ic(start, stop, sequence.shape, log_probs, max_token_prob, certainty_score[i])
-                input()
-
         if "nl_token_index" in inputs:
-            nl_state = hidden_states[torch.arange(B), inputs["nl_token_index"]]
-            fl_state = hidden_states[torch.arange(B), inputs["fl_token_index"]]
+            nl_index = inputs["nl_token_index"]
+            fl_index = inputs["fl_token_index"]
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
             nl_index = inputs["input_length"]
             fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
 
-            # Get the states for the end of the input (NL) and end out of the output (FL)
-            nl_state = hidden_states[torch.arange(B), nl_index]
-            fl_state = hidden_states[torch.arange(B), fl_index]
+        certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
+        for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
+            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
+            max_token_prob = torch.max(log_probs, dim=-1).values
+            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
 
+        nl_state = hidden_states[torch.arange(B), nl_index]
+        fl_state = hidden_states[torch.arange(B), fl_index]
         # Do mean Log Softmax over the cosine similarity
         # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j
         # So that means the diagonal is what we want to maximize, while minimizing everything else
