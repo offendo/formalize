@@ -279,7 +279,7 @@ class CustomCollator(DataCollatorForLanguageModeling):
         inputs = [ex.pop("input") for ex in examples]
         outputs = [ex.pop("output") for ex in examples]
         batch = super().__call__(examples, *args, **kwargs)
-        batch["input_length"] = torch.tensor(input_length)
+        batch["input_length"] = input_length
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
         return batch
