@@ -9,7 +9,6 @@ from pprint import pprint
 from typing import Annotated, Optional
 from typer import Argument, Option, run as typer_run, Typer
 import typer
-from icecream import ic
 
 from transformers import (
     DataCollator,
