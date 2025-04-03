@@ -24,8 +24,10 @@ spec:
       command: ["sleep", "infinity"]
       workingDir: /app/formalize
       env:
+        - name: MODEL_NAME
+          value: "meta-llama/Llama-3.1-8B"
         - name: WANDB_RUN
-          value: "bs8_short"
+          value: "debug"
         - name: LR
           value: "1e-5"
         - name: OPTIMIZER

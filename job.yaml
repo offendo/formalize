@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train
+  name: nilay-formalize-train-llama-full
 spec:
   template:
     spec:
@@ -31,27 +31,29 @@ spec:
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "meta-llama/Meta-Llama-3.1-8B"
+              value: "meta-llama/Llama-3.1-8B"
             - name: WANDB_RUN
-              value: "bs8_short"
+              value: "llama_lora_with_special_tokens"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
               value: "paged_adamw_8bit"
             - name: SCHEDULER
-              value: "constant_with_warmup"
+              value: "cosine"
             - name: EPOCHS
               value: "3"
             - name: BATCH_SIZE
               value: "8"
             - name: GRAD_ACC
-              value: "8"
+              value: "16"
             - name: EVAL_STEPS
-              value: "500"
+              value: "250"
             - name: GRAD_CKPT
-              value: "False"
+              value: "--gradient-checkpointing"
             - name: LORA_RANK
               value: "256"
+            - name: ADD_SPECIAL_REPRESENTATION
+              value: "--add-special-representation"
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -61,11 +63,11 @@ spec:
               mountPath: /etc/api-tokens
           resources:
             limits:
-              memory: 32Gi
+              memory: 64Gi
               cpu: 2
               nvidia.com/gpu: "6"
             requests:
-              memory: 32Gi
+              memory: 64Gi
               cpu: 2
               nvidia.com/gpu: "6"
       initContainers:

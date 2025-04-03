@@ -9,6 +9,7 @@ from pprint import pprint
 from typing import Annotated, Optional
 from typer import Argument, Option, run as typer_run, Typer
 import typer
+from icecream import ic
 
 from transformers import (
     DataCollator,
@@ -171,20 +172,26 @@ class FastLanguageTrainer(SFTTrainer):
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
 
-        # Get the index of the end of the prompt, so we can get the representation of the natural language
-        # FIXME: for some reason, we overestimated by 3, so we have to subtract 3 here
-        nl_index = inputs["input_length"] - 3
-        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
-
-        # Get the states for the end of the input (NL) and end out of the output (FL)
-        nl_state = hidden_states[torch.arange(B), nl_index]
-        fl_state = hidden_states[torch.arange(B), fl_index]
-
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
         for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
             log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
             max_token_prob = torch.max(log_probs, dim=-1).values
             certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
+            if any(torch.isnan(certainty_score)):
+                ic(start, stop, sequence.shape, log_probs, max_token_prob, certainty_score[i])
+                input()
+
+        if 'nl_token_index' in inputs:
+            nl_state = hidden_states[torch.arange(B), inputs['nl_token_index']]
+            fl_state = hidden_states[torch.arange(B), inputs['fl_token_index']]
+        else:
+            # Get the index of the end of the prompt, so we can get the representation of the natural language
+            nl_index = inputs["input_length"]
+            fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
+
+            # Get the states for the end of the input (NL) and end out of the output (FL)
+            nl_state = hidden_states[torch.arange(B), nl_index]
+            fl_state = hidden_states[torch.arange(B), fl_index]
 
         # Do mean Log Softmax over the cosine similarity
         # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j
@@ -215,37 +222,48 @@ class FastLanguageTrainer(SFTTrainer):
         return (loss, new_outputs) if return_outputs else loss
 
 
-def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048) -> DatasetDict:
+def load_data(dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048, add_special_representation: bool = False) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
-
-    def get_input_length(examples):
-        input_prompts = [ex for ex in examples["input"]]
-        inputs = tokenizer(input_prompts, add_special_tokens=False).input_ids
-        return {"input_length": [len(i) for i in inputs]}
-
-    def apply_template(examples):
-        prompts = []
-        for input, output in zip(examples["input"], examples["output"]):
-            prompts.append(
-                f"Statement in natural language:\n{input}\nTranslate the statement in natural language to Lean:\n{output}"
-                + EOS
-            )
-        return {"text": prompts}
+    END_OF_NL = ""
+    END_OF_FL = ""
+    END_OF_NL_ID = None
+    END_OF_FL_ID = None
+    if add_special_representation:
+        tokenizer.add_tokens(["<|end_of_nl|>", "<|end_of_fl|>"])
+        END_OF_NL = "<|end_of_nl|>"
+        END_OF_FL = "<|end_of_fl|>"
+        END_OF_NL_ID = tokenizer.convert_tokens_to_ids(END_OF_NL)
+        END_OF_FL_ID = tokenizer.convert_tokens_to_ids(END_OF_FL)
 
     def tokenize(examples):
-        batch = tokenizer(examples["text"], padding=False)
-        batch["input_length"] = examples["input_length"]
+        prompts = []
+        input_lengths = []
+        for input, output in zip(examples["input"], examples["output"]):
+            # Format input/output as a prompt
+            format_input = f"Statement in natural language:\n{input}"
+            format_output = f"\nTranslate the statement in natural language to Lean:\n{output}"
+            format_prompt = format_input + END_OF_NL + format_output + END_OF_FL + EOS
+            prompts.append(format_prompt)
+
+            # Have to add 1 to ensure we include the <bos> token
+            input_len = len(tokenizer(format_input, add_special_tokens=False).input_ids)
+            input_lengths.append(input_len)
+
+        # Do tokenization here
+        batch = tokenizer(prompts, padding=False)
+        batch['input_length'] = input_lengths
         if "label" in examples:
             batch["aligned"] = examples["label"]
+
+        if add_special_representation:
+            batch['nl_token_index'] = [example.index(END_OF_NL_ID) for example in batch['input_ids']]
+            batch['fl_token_index'] = [example.index(END_OF_FL_ID) for example in batch['input_ids']]
+            
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
-    dataset = dataset.map(get_input_length, batched=True)
-    dataset = dataset.map(apply_template, batched=True)
     dataset = dataset.map(tokenize, batched=True)
-    dataset = dataset.filter(
-        lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
-    )
+    dataset = dataset.filter(lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"])
     return dataset  # type:ignore
 
 
@@ -306,6 +324,7 @@ def train(
     gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
     eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
+    add_special_representation: Annotated[bool, Option("--add-special-representation", help="add <|end_of_nl/fl|> tokens", rich_help_panel="Training Config")] = False,
     debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
@@ -347,12 +366,13 @@ def train(
         label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
-    data = load_data(dataset, tokenizer, max_tokens=max_tokens)
-    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
+    data = load_data(dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
+    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
     test_data = test_data.shuffle(seed=seed)
     test_data = Dataset.from_list(
         [example for key in test_data.keys() for example in test_data[key].select(range(100))]
     )
+    breakpoint()
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,

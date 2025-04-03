@@ -7,12 +7,6 @@ export WANDB_PROJECT='formal-align'
 
 export SEED=1234
 
-if [[ $GRAD_CKPT = "True" ]]; then
-  export GRAD_CKPT="--gradient-checkpointing"
-else
-  export GRAD_CKPT=""
-fi
-
 python src/formalize/align.py train \
     --model-name $MODEL_NAME \
     --dataset "offendo/formal-align-redux" \
@@ -24,4 +18,5 @@ python src/formalize/align.py train \
     --num-epochs $EPOCHS \
     --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
     $GRAD_CKPT \
-    --lora-rank $LORA_RANK --eval-steps $EVAL_STEPS
+    $ADD_SPECIAL_REPRESENTATION \
+    --lora-rank $LORA_RANK --eval-steps $EVAL_STEPS \
