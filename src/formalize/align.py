@@ -254,6 +254,7 @@ def load_data(
         # Do tokenization here
         batch = tokenizer(prompts, padding=False)
         batch["input_length"] = input_lengths
+        batch["text"] = prompts
         if "label" in examples:
             batch["aligned"] = examples["label"]
 

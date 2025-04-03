@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-llama-full
+  name: nilay-formalize-train
 spec:
   template:
     spec:
@@ -57,7 +57,7 @@ spec:
           volumeMounts:
             - name: git-repo
               mountPath: /app
-            - name: nilay-data-volume-rwm-central
+            - name: nilay-data-volume-rwm
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
@@ -101,16 +101,16 @@ spec:
               memory: 4Gi
               cpu: 1
           volumeMounts:
-            - name: nilay-data-volume-rwm-central
+            - name: nilay-data-volume-rwm
               mountPath: /volume
       securityContext:
         fsGroup: 101
       volumes:
         - name: git-repo
           emptyDir: {}
-        - name: nilay-data-volume-rwm-central
+        - name: nilay-data-volume-rwm
           persistentVolumeClaim:
-            claimName: nilay-data-volume-rwm-central
+            claimName: nilay-data-volume-rwm
         - name: git-secret
           secret:
             defaultMode: 0400
