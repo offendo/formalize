@@ -177,7 +177,7 @@ class FastLanguageTrainer(SFTTrainer):
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
             nl_index = inputs["input_length"]
-            fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1
+            fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
         for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
@@ -187,6 +187,16 @@ class FastLanguageTrainer(SFTTrainer):
 
         nl_state = hidden_states[torch.arange(B), nl_index]
         fl_state = hidden_states[torch.arange(B), fl_index]
+
+        # from icecream import ic
+        # for i, ex in enumerate(inputs['input_ids']):
+        #     nl = ex[nl_index[i]]
+        #     fl = ex[fl_index[i]]
+        #     ic(self.processing_class.decode(nl), self.processing_class.decode(fl))
+        # input()
+        # ic(nl_state[0, :10], fl_state[0, :10], F.cosine_similarity(nl_state[0, :10], fl_state[0, :10], dim=-1))
+        # input()
+
         # Do mean Log Softmax over the cosine similarity
         # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j
         # So that means the diagonal is what we want to maximize, while minimizing everything else
@@ -236,7 +246,7 @@ def load_data(
         input_lengths = []
         for input, output in zip(examples["input"], examples["output"]):
             # Format input/output as a prompt
-            format_input = f"Statement in natural language:\n{input}\n"
+            format_input = f"Statement in natural language:\n{input} \n"
             format_output = f"Translate the statement in natural language to Lean:\n{output}"
             format_prompt = format_input + END_OF_NL + format_output + END_OF_FL + EOS
             prompts.append(format_prompt)
