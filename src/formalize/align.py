@@ -27,7 +27,7 @@ from transformers.utils import ModelOutput
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
 from datasets import load_dataset, Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model, TaskType, PeftModel
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 
 import torch
 import torch.nn as nn
@@ -292,7 +292,8 @@ def compute_metrics(evals: EvalPrediction):
     scores, (_, labels), inputs, losses = evals
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
-    return {"precision": p, "recall": r, "f1": f1}
+    roc_auc = roc_auc_score(labels, scores)
+    return {"precision": p, "recall": r, "f1": f1, "roc_auc": roc_auc}
 
 
 def preprocess_logits_for_metrics(logits, labels):
