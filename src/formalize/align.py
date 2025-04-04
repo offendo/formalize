@@ -366,12 +366,12 @@ def train(
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
-    test_data = load_data(
+    all_test_data = load_data(
         eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation
     )
-    test_data = test_data.shuffle(seed=seed)
-    test_data = Dataset.from_list(
-        [example for key in test_data.keys() for example in test_data[key].select(range(100))]
+    all_test_data = all_test_data.shuffle(seed=seed)
+    eval_data = Dataset.from_list(
+        [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
     )
     trainer = FastLanguageTrainer(
         model=model,
@@ -380,11 +380,18 @@ def train(
         data_collator=collator,
         train_dataset=data["train"],
         compute_metrics=compute_metrics,
-        eval_dataset=test_data,
+        eval_dataset=eval_data,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     trainer.train()
     trainer.save_model(output_dir)
+    for split in all_test_data.keys():
+        preds, labels, metrics = trainer.predict(all_test_data[split].select(range(500)), metric_key_prefix=split)
+        pprint(metrics)
+        with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
+            json.dump(metrics, f)
+        with open(Path(output_dir, f"{split}_outputs.pkl"), "w") as f:
+            pickle.dump({"labels": labels, "preds": preds}, f)
 
 
 @app.command()
