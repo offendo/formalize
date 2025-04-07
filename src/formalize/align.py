@@ -363,7 +363,7 @@ def train(
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=1,
+        per_device_eval_batch_size=batch_size,
         gradient_accumulation_steps=gradient_accumulation,  # Increase to 4 for smoother training
         gradient_checkpointing=gradient_checkpointing,
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
