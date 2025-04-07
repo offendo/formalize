@@ -214,12 +214,16 @@ class FastLanguageTrainer(SFTTrainer):
         similarity_score = torch.diagonal(cos)
         score = (similarity_score + certainty_score) / 2
 
+        # get the score of all the dis-similar values
+        anti_similarity_score = (cos.sum() - similarity_score.sum()) / (cos.numel() + similarity_score.numel())
+
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(ce_loss.item())
         self._metrics["cl_loss"].append(cl_loss.item())
         self._metrics["total_loss"].append(loss.item())
         self._metrics["similarity_score"].append(similarity_score.mean().item())
+        self._metrics["anti_similarity_score"].append(anti_similarity_score.item())
         self._metrics["certainty_score"].append(certainty_score.mean().item())
 
         new_outputs = FormalAlignOutput(loss=loss, logits=outputs.logits, predictions=score)
