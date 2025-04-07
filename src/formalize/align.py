@@ -9,6 +9,7 @@ from pprint import pprint
 from typing import Annotated, Optional
 from typer import Argument, Option, run as typer_run, Typer
 import typer
+from icecream import ic
 
 from transformers import (
     DataCollator,
@@ -184,9 +185,11 @@ class FastLanguageTrainer(SFTTrainer):
             zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
         ):
             log_probs = torch.log_softmax(logits[start:stop], dim=-1)
-            token_probs = log_probs[torch.arange(stop - start), sequence[start:stop]]
+            token_probs = log_probs[torch.arange(len(log_probs)), sequence[start+1:stop+1]]
             # BUG: This is getting max token prob, but it should be the token probs of the actual input IDs at these indices
-            # max_token_prob = torch.max(log_probs, dim=-1).values
+            # max_token_prob = torch.max(log_probs, dim=-1)
+            # ic(max_token_prob.indices, sequence[start:stop], max_token_prob.values, token_probs)
+            # input()
             certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
 
         nl_state = hidden_states[torch.arange(B), nl_index]
