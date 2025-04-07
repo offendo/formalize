@@ -180,10 +180,14 @@ class FastLanguageTrainer(SFTTrainer):
             fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
-        for i, (sequence, start, stop) in enumerate(zip(outputs.logits, nl_index + 1, fl_index)):
-            log_probs = torch.log_softmax(sequence[start:stop], dim=-1)
-            max_token_prob = torch.max(log_probs, dim=-1).values
-            certainty_score[i] = torch.exp(torch.mean(max_token_prob, dim=-1))
+        for i, (sequence, logits, start, stop) in enumerate(
+            zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
+        ):
+            log_probs = torch.log_softmax(logits[start:stop], dim=-1)
+            token_probs = log_probs[torch.arange(stop - start), sequence[start:stop]]
+            # BUG: This is getting max token prob, but it should be the token probs of the actual input IDs at these indices
+            # max_token_prob = torch.max(log_probs, dim=-1).values
+            certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
 
         nl_state = hidden_states[torch.arange(B), nl_index]
         fl_state = hidden_states[torch.arange(B), fl_index]
@@ -226,7 +230,9 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["anti_similarity_score"].append(anti_similarity_score.item())
         self._metrics["certainty_score"].append(certainty_score.mean().item())
 
-        new_outputs = FormalAlignOutput(loss=loss, logits=outputs.logits, predictions=score)
+        new_outputs = FormalAlignOutput(
+            loss=loss, logits=outputs.logits, predictions=(certainty_score, similarity_score)
+        )
         return (loss, new_outputs) if return_outputs else loss
 
 
@@ -303,10 +309,21 @@ def compute_metrics(evals: EvalPrediction):
     # This is the cutoff given by the FormalAlign paper
     CUTOFF = 0.7
 
-    scores, (_, labels), inputs, losses = evals
+    (cert_score, sim_score), (_, labels), inputs, losses = evals
+    scores = (cert_score + sim_score) / 2
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
     roc_auc = roc_auc_score(labels, scores)
+    print("=" * 100)
+    for name, val in {"cert": cert_score, "sim": sim_score, "mean": scores}.items():
+        score_p = [c for c, l in zip(val, labels) if l == 1]
+        score_p_mean = sum(score_p) / len(score_p)
+        score_n = [c for c, l in zip(val, labels) if l == 0]
+        score_n_mean = sum(score_n) / len(score_n)
+        print(f"Positive {name} scores:  {score_p_mean}")
+        print(f"Negative {name} scores:  {score_n_mean}")
+    print("=" * 100)
+    # get scores of each type
     return {"precision": p, "recall": r, "f1": f1, "roc_auc": roc_auc}
 
 
@@ -359,7 +376,7 @@ def train(
         warmup_ratio=0.03,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=5,
+        logging_steps=25,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
