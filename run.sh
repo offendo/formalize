@@ -12,7 +12,7 @@ export SEED=1234
 
 python src/formalize/align.py train \
     --model-name $MODEL_NAME \
-    --dataset "offendo/formal-align-redux" \
+    --dataset "offendo/formal-align-redux-with-misaligned" \
     --eval-dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \

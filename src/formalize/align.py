@@ -166,6 +166,7 @@ class FastLanguageTrainer(SFTTrainer):
         # Cross entropy loss (autoformalization loss)
         inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
+        ce_loss = ce_loss * inputs["aligned"]  # only want to count the positive examples
         ce_loss = ce_loss.mean()
 
         # Last hidden state for contrastive loss
@@ -190,34 +191,25 @@ class FastLanguageTrainer(SFTTrainer):
         nl_state = hidden_states[torch.arange(B), nl_index]
         fl_state = hidden_states[torch.arange(B), fl_index]
 
-        # Do mean Log Softmax over the cosine similarity
-        # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j
-        # So that means the diagonal is what we want to maximize, while minimizing everything else
-        cos = cosine_similarity_matrix(nl_state, fl_state)  # nl_state = BxD, fl_state = BxD
+        # Do cosine similarity between pairs, and compare against the labels
+        similarity_score = torch.cosine_similarity(nl_state, fl_state, dim=-1)
 
-        TAU = 0.7  # This is given by FormalAlign authors
+        cl_loss = F.mse_loss((similarity_score + 1) / 2, inputs["aligned"])
 
-        # numerator the similarities between matching values
-        numerator = torch.exp(torch.diagonal(cos / TAU))
-
-        # denominator is sum over j for each pair sim(NL_i, FL_j)
-        denominator = torch.sum(torch.exp(cos / TAU), dim=1)
-        cl_loss = -torch.mean(torch.log(numerator / denominator), dim=-1)
-
-        similarity_score = torch.diagonal(cos)
-        score = (similarity_score + certainty_score) / 2
-
-        # get the score of all the dis-similar values
-        anti_similarity_score = (cos.sum() - similarity_score.sum()) / (cos.numel() + similarity_score.numel())
+        pos_similarity_score = sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"])
+        pos_certainty_score = sum(certainty_score) / sum(inputs["aligned"])
+        neg_similarity_score = sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
+        neg_certainty_score = sum(certainty_score) / sum(1 - inputs["aligned"])
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
-        self._metrics["ce_loss"].append(ce_loss.item())
+        self._metrics["ce_loss"].append(float(ce_loss))
         self._metrics["cl_loss"].append(cl_loss.item())
         self._metrics["total_loss"].append(loss.item())
-        self._metrics["similarity_score"].append(similarity_score.mean().item())
-        self._metrics["anti_similarity_score"].append(anti_similarity_score.item())
-        self._metrics["certainty_score"].append(certainty_score.mean().item())
+        self._metrics["pos_similarity_score"].append(float(pos_similarity_score))
+        self._metrics["pos_certainty_score"].append(float(pos_certainty_score))
+        self._metrics["neg_similarity_score"].append(float(neg_similarity_score))
+        self._metrics["neg_certainty_score"].append(float(neg_certainty_score))
 
         new_outputs = FormalAlignOutput(
             loss=loss, logits=outputs.logits, predictions=(certainty_score, similarity_score)
@@ -287,6 +279,7 @@ class CustomCollator(DataCollatorForLanguageModeling):
         texts = [ex.pop("text") for ex in examples]
         inputs = [ex.pop("input") for ex in examples]
         outputs = [ex.pop("output") for ex in examples]
+        misalign_types = [ex.pop("misalign_type") for ex in examples]
         batch = super().__call__(examples, *args, **kwargs)
         batch["input_length"] = input_length
         if labels is not None:
