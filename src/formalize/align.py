@@ -417,7 +417,7 @@ def train(
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
             pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
-        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
+        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score})
         df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
@@ -478,7 +478,7 @@ def test(
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
             pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
-        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
+        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score})
         df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 

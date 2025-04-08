@@ -30,6 +30,7 @@ dev-dependencies = [
     "black>=25.1.0",
     "isort>=6.0.1",
     "seaborn>=0.13.2",
+    "tqdm>=4.67.1",
 ]
 
 [tool.rye.scripts]
