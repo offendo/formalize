@@ -9,7 +9,6 @@ from pprint import pprint
 from typing import Annotated, Optional
 from typer import Argument, Option, run as typer_run, Typer
 import typer
-from icecream import ic
 
 from transformers import (
     DataCollator,
@@ -185,24 +184,11 @@ class FastLanguageTrainer(SFTTrainer):
             zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
         ):
             log_probs = torch.log_softmax(logits[start:stop], dim=-1)
-            token_probs = log_probs[torch.arange(len(log_probs)), sequence[start+1:stop+1]]
-            # BUG: This is getting max token prob, but it should be the token probs of the actual input IDs at these indices
-            # max_token_prob = torch.max(log_probs, dim=-1)
-            # ic(max_token_prob.indices, sequence[start:stop], max_token_prob.values, token_probs)
-            # input()
+            token_probs = log_probs[torch.arange(len(log_probs)), sequence[start + 1 : stop + 1]]
             certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
 
         nl_state = hidden_states[torch.arange(B), nl_index]
         fl_state = hidden_states[torch.arange(B), fl_index]
-
-        # from icecream import ic
-        # for i, ex in enumerate(inputs['input_ids']):
-        #     nl = ex[nl_index[i]]
-        #     fl = ex[fl_index[i]]
-        #     ic(self.processing_class.decode(nl), self.processing_class.decode(fl))
-        # input()
-        # ic(nl_state[0, :10], fl_state[0, :10], F.cosine_similarity(nl_state[0, :10], fl_state[0, :10], dim=-1))
-        # input()
 
         # Do mean Log Softmax over the cosine similarity
         # `cos` is a BxB matrix, where element [i,j] is the similarity between NL_i and FL_j

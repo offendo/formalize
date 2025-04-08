@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-llama3b
+  name: nilay-formalize-train-llama3b-central
 spec:
   template:
     spec:
@@ -33,17 +33,17 @@ spec:
             - name: MODEL_NAME
               value: "meta-llama/Llama-3.2-3B"
             - name: WANDB_RUN
-              value: "llama_3b_full"
+              value: "llama_3b_full_central"
             - name: LR
-              value: "1e-5"
+              value: "2e-5"
             - name: OPTIMIZER
               value: "paged_adamw_8bit"
             - name: SCHEDULER
-              value: "constant"
+              value: "cosine"
             - name: EPOCHS
               value: "2"
             - name: BATCH_SIZE
-              value: "4"
+              value: "8"
             - name: GRAD_ACC
               value: "8"
             - name: EVAL_STEPS
@@ -57,7 +57,7 @@ spec:
           volumeMounts:
             - name: git-repo
               mountPath: /app
-            - name: nilay-data-volume-rwm
+            - name: nilay-data-volume-rwm-central
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
@@ -65,11 +65,11 @@ spec:
             limits:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "2"
+              nvidia.com/gpu: "4"
             requests:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "2"
+              nvidia.com/gpu: "4"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0
@@ -101,16 +101,16 @@ spec:
               memory: 4Gi
               cpu: 1
           volumeMounts:
-            - name: nilay-data-volume-rwm
+            - name: nilay-data-volume-rwm-central
               mountPath: /volume
       securityContext:
         fsGroup: 101
       volumes:
         - name: git-repo
           emptyDir: {}
-        - name: nilay-data-volume-rwm
+        - name: nilay-data-volume-rwm-central
           persistentVolumeClaim:
-            claimName: nilay-data-volume-rwm
+            claimName: nilay-data-volume-rwm-central
         - name: git-secret
           secret:
             defaultMode: 0400
