@@ -303,6 +303,7 @@ def compute_metrics(evals: EvalPrediction):
     preds = (scores >= CUTOFF).astype(int)  # type:ignore
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
     roc_auc = roc_auc_score(labels, scores)
+    results = {}
     print("=" * 100)
     for name, val in {"cert": cert_score, "sim": sim_score, "mean": scores}.items():
         score_p = [c for c, l in zip(val, labels) if l == 1]
@@ -311,9 +312,11 @@ def compute_metrics(evals: EvalPrediction):
         score_n_mean = sum(score_n) / len(score_n)
         print(f"Positive {name} scores:  {score_p_mean}")
         print(f"Negative {name} scores:  {score_n_mean}")
+        results[f"{name}_score_pos"] = score_p_mean
+        results[f"{name}_score_neg"] = score_n_mean
     print("=" * 100)
     # get scores of each type
-    return {"precision": p, "recall": r, "f1": f1, "roc_auc": roc_auc}
+    return {"precision": p, "recall": r, "f1": f1, "roc_auc": roc_auc, **results}
 
 
 def preprocess_logits_for_metrics(logits, labels):
@@ -405,22 +408,26 @@ def train(
     )
     trainer.train()
     trainer.save_model(output_dir)
-    for split in all_test_data.keys():
-        preds, labels, metrics = trainer.predict(all_test_data[split].select(range(500)), metric_key_prefix=split)
+    for split in data.keys():
+        (cert_score, sim_score), (_, labels), metrics = trainer.predict(
+            data[split].shuffle(seed=seed).select(range(1000)), metric_key_prefix=split
+        )
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
             pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
+        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
+        df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
 @app.command()
 def test(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to test", rich_help_panel="Model Config")],
-    adapter_name: Annotated[str, Option(help="path to adapter to test", rich_help_panel="Model Config")],
     dataset: Annotated[str, Option(help="path to datasets to test", rich_help_panel="Data Config")],
     output_dir: Annotated[str, Option(help="path to output directory", rich_help_panel="Data Config")],
+    adapter_name: Annotated[str, Option(help="path to adapter to test", rich_help_panel="Model Config")] = None,
     max_tokens: Annotated[int, Option(help="max tokens", rich_help_panel="Training Config")] = 2048,
     gpu_memory_utilization: Annotated[float, Option(help="percent of GPU to give to unsloth", rich_help_panel="Training Config")] = 0.6,
     seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
@@ -463,16 +470,16 @@ def test(
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     for split in data.keys():
-        (cert_score, sim_score), (labels, _), metrics = trainer.predict(
-            data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split
+        (cert_score, sim_score), (_, labels), metrics = trainer.predict(
+            data[split].shuffle(seed=seed).select(range(1000)), metric_key_prefix=split
         )
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
             pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
-        # df = pd.DataFrame({"pred": preds, "label": labels})
-        # df.to_json(Path(output_dir, f"{split}_preds.json"))
+        df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
+        df.to_json(Path(output_dir, f"{split}_preds.json"))
 
 
 if __name__ == "__main__":
