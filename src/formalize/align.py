@@ -411,7 +411,7 @@ def train(
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
         with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
-            pickle.dump({"labels": labels, "preds": preds}, f)
+            pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
 
 
 @app.command()
@@ -463,14 +463,14 @@ def test(
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     for split in data.keys():
-        preds, labels, metrics = trainer.predict(
+        (cert_score, sim_score), (labels, _), metrics = trainer.predict(
             data[split].shuffle(seed=seed).select(range(500)), metric_key_prefix=split
         )
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
-        with open(Path(output_dir, f"{split}_outputs.pkl"), "w") as f:
-            pickle.dump({"labels": labels, "preds": preds}, f)
+        with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
+            pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
         # df = pd.DataFrame({"pred": preds, "label": labels})
         # df.to_json(Path(output_dir, f"{split}_preds.json"))
 

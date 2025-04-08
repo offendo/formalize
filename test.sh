@@ -6,7 +6,7 @@ wandb login $(cat /etc/api-tokens/wandb-token)
 export WANDB_PROJECT='formal-align'
 
 python src/formalize/align.py test \
-    --model-name "meta-llama/Meta-Llama-3.1-8B" \
+    --model-name "$MODEL_NAME" \
     --adapter-name "/volume/formal_align_$WANDB_RUN" \
     --dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
