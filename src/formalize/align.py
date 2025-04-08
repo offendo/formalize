@@ -410,7 +410,7 @@ def train(
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
-        with open(Path(output_dir, f"{split}_outputs.pkl"), "w") as f:
+        with open(Path(output_dir, f"{split}_outputs.pkl"), "wb") as f:
             pickle.dump({"labels": labels, "preds": preds}, f)
 
 
