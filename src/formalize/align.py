@@ -25,7 +25,7 @@ from transformers import (
 )
 from transformers.utils import ModelOutput
 from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import concatenate_datasets, load_dataset, Dataset, DatasetDict
 from peft import LoraConfig, get_peft_model, TaskType, PeftModel
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 
@@ -230,7 +230,10 @@ class FastLanguageTrainer(SFTTrainer):
 
 
 def load_data(
-    dataset_name: str, tokenizer: PreTrainedTokenizer, max_tokens: int = 2048, add_special_representation: bool = False
+    dataset_name: str,
+    tokenizer: PreTrainedTokenizer,
+    max_tokens: int = 2048,
+    add_special_representation: bool = False,
 ) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
     END_OF_NL = ""
@@ -275,7 +278,7 @@ def load_data(
     dataset = dataset.filter(
         lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
     )
-    return dataset  # type:ignore
+    return dataset
 
 
 class CustomCollator(DataCollatorForLanguageModeling):
@@ -394,10 +397,17 @@ def train(
         label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
-    data = load_data(dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation)
-    all_test_data = load_data(
-        eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation
-    )
+    data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    data = data.shuffle(seed=seed)
+    positives = data.filter(lambda ex: ex["aligned"] == 1)
+    negatives = data.filter(lambda ex: ex["aligned"] == 0)
+    print("Positive dataset: ", positives)
+    print("Negatives dataset: ", negatives)
+    # Only select some of the negative examples to make training more balanaced
+    train_data = concatenate_datasets([positives["train"], negatives["train"].select(range(len(positives["train"])))])
+    train_data = train_data.shuffle(seed=seed)
+
+    all_test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
     all_test_data = all_test_data.shuffle(seed=seed)
     # eval_data = Dataset.from_list(
     #     [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
@@ -407,17 +417,16 @@ def train(
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
-        train_dataset=data["train"],
+        train_dataset=train_data,
         compute_metrics=compute_metrics,
-        eval_dataset=data["validation"],
+        eval_dataset=data["validation"].select(range(200)),
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     trainer.train()
     trainer.save_model(output_dir)
     for split in data.keys():
-        (cert_score, sim_score), (_, labels), metrics = trainer.predict(
-            data[split].shuffle(seed=seed).select(range(1000)), metric_key_prefix=split
-        )
+        outputs = trainer.predict(data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split)  # type:ignore
+        (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
@@ -476,9 +485,8 @@ def test(
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     for split in data.keys():
-        (cert_score, sim_score), (_, labels), metrics = trainer.predict(
-            data[split].shuffle(seed=seed).select(range(1000)), metric_key_prefix=split
-        )
+        outputs = trainer.predict(data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split)  # type:ignore
+        (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
             json.dump(metrics, f)
