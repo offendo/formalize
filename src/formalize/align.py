@@ -192,9 +192,9 @@ class FastLanguageTrainer(SFTTrainer):
         fl_state = hidden_states[torch.arange(B), fl_index]
 
         # Do cosine similarity between pairs, and compare against the labels
-        similarity_score = torch.cosine_similarity(nl_state, fl_state, dim=-1)
-
-        cl_loss = F.mse_loss((similarity_score + 1) / 2, inputs["aligned"].float())
+        cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
+        similarity_score = (cos + 1) / 2
+        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].float())
 
         pos_similarity_score = (
             sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
@@ -303,8 +303,8 @@ class CustomCollator(DataCollatorForLanguageModeling):
 
 
 def compute_metrics(evals: EvalPrediction):
-    # This is the cutoff given by the FormalAlign paper
-    CUTOFF = 0.7
+    # FormalAlign recommends 0.7, but I think 0.5 is better for our model
+    CUTOFF = 0.5
 
     (cert_score, sim_score), (_, labels), inputs, losses = evals
     scores = (cert_score + sim_score) / 2
