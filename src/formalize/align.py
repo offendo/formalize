@@ -198,31 +198,31 @@ class FastLanguageTrainer(SFTTrainer):
         similarity_score = (cos + 1) / 2
         cl_loss = F.mse_loss(similarity_score, inputs["aligned"].float())
 
-        pos_similarity_score = (
-            sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
-        )
-        pos_certainty_score = (
-            sum(certainty_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
-        )
-        neg_similarity_score = (
-            sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
-            if sum(1 - inputs["aligned"])
-            else 0.0
-        )
-        neg_certainty_score = (
-            sum(certainty_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
-            if sum(1 - inputs["aligned"])
-            else 0.0
-        )
+        # pos_similarity_score = (
+        #     sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
+        # )
+        # pos_certainty_score = (
+        #     sum(certainty_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
+        # )
+        # neg_similarity_score = (
+        #     sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
+        #     if sum(1 - inputs["aligned"]) > 0
+        #     else 0.0
+        # )
+        # neg_certainty_score = (
+        #     sum(certainty_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
+        #     if sum(1 - inputs["aligned"]) > 0
+        #     else 0.0
+        # )
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(float(ce_loss))
         self._metrics["cl_loss"].append(cl_loss.item())
-        self._metrics["pos_similarity_score"].append(float(pos_similarity_score))
-        self._metrics["pos_certainty_score"].append(float(pos_certainty_score))
-        self._metrics["neg_similarity_score"].append(float(neg_similarity_score))
-        self._metrics["neg_certainty_score"].append(float(neg_certainty_score))
+        # self._metrics["pos_similarity_score"].append(float(pos_similarity_score))
+        # self._metrics["pos_certainty_score"].append(float(pos_certainty_score))
+        # self._metrics["neg_similarity_score"].append(float(neg_similarity_score))
+        # self._metrics["neg_certainty_score"].append(float(neg_certainty_score))
 
         new_outputs = FormalAlignOutput(
             loss=loss, logits=outputs.logits, predictions=(certainty_score, similarity_score)
