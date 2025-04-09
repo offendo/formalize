@@ -177,13 +177,11 @@ class FastLanguageTrainer(SFTTrainer):
             fl_index = inputs["fl_token_index"]
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
-            nl_index = inputs["input_length"]
+            nl_index = inputs["input_length"] # this index should be the " \n" token; to get start of FL you need to add 1
             fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
-        for i, (sequence, logits, start, stop) in enumerate(
-            zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
-        ):
+        for i, (sequence, logits, start, stop) in enumerate(zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)):
             log_probs = torch.log_softmax(logits[start:stop], dim=-1)
             token_probs = log_probs[torch.arange(len(log_probs)), sequence[start + 1 : stop + 1]]
             certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
@@ -283,20 +281,24 @@ def load_data(
 
 class CustomCollator(DataCollatorForLanguageModeling):
     def __call__(self, examples, *args, **kwargs):
-        if isinstance(examples, dict):
-            input_length = examples["input_length"]
-        else:
-            input_length = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
         if "aligned" in examples[0]:
             labels = [ex.pop("aligned") for ex in examples]
         else:
             labels = None
+
+        # Remove the stuff we don't need
         texts = [ex.pop("text") for ex in examples]
         inputs = [ex.pop("input") for ex in examples]
         outputs = [ex.pop("output") for ex in examples]
         misalign_types = [ex.pop("misalign_type") if "misalign_type" in ex else None for ex in examples]
+
         batch = super().__call__(examples, *args, **kwargs)
-        batch["input_length"] = input_length
+        batch["input_length"] = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
+
+        # Mask out the input part so the model only trains on completions
+        for label, length in zip(batch["labels"], batch["input_length"]):
+            label[:length] = -100
+
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
         return batch
