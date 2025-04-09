@@ -407,8 +407,8 @@ def train(
     train_data = concatenate_datasets([positives["train"], negatives["train"].select(range(len(positives["train"])))])
     train_data = train_data.shuffle(seed=seed)
 
-    all_test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
-    all_test_data = all_test_data.shuffle(seed=seed)
+    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
+    test_data = test_data.shuffle(seed=seed)
     # eval_data = Dataset.from_list(
     #     [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
     # )
@@ -424,7 +424,7 @@ def train(
     )
     trainer.train()
     trainer.save_model(output_dir)
-    for split in data.keys():
+    for split in test_data.keys():
         outputs = trainer.predict(data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split)  # type:ignore
         (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
@@ -474,18 +474,20 @@ def test(
         label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
-    data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    test_data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
         args=training_args,
         data_collator=collator,
         compute_metrics=compute_metrics,
-        train_dataset=data[list(data.keys())[0]],
+        train_dataset=test_data[list(test_data.keys())[0]],
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
-    for split in data.keys():
-        outputs = trainer.predict(data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split)  # type:ignore
+    for split in test_data.keys():
+        outputs = trainer.predict(
+            test_data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split
+        )  # type:ignore
         (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
