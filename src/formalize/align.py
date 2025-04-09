@@ -177,11 +177,15 @@ class FastLanguageTrainer(SFTTrainer):
             fl_index = inputs["fl_token_index"]
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
-            nl_index = inputs["input_length"] # this index should be the " \n" token; to get start of FL you need to add 1
+            nl_index = inputs[
+                "input_length"
+            ]  # this index should be the " \n" token; to get start of FL you need to add 1
             fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
-        for i, (sequence, logits, start, stop) in enumerate(zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)):
+        for i, (sequence, logits, start, stop) in enumerate(
+            zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
+        ):
             log_probs = torch.log_softmax(logits[start:stop], dim=-1)
             token_probs = log_probs[torch.arange(len(log_probs)), sequence[start + 1 : stop + 1]]
             certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
@@ -215,7 +219,6 @@ class FastLanguageTrainer(SFTTrainer):
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(float(ce_loss))
         self._metrics["cl_loss"].append(cl_loss.item())
-        self._metrics["total_loss"].append(loss.item())
         self._metrics["pos_similarity_score"].append(float(pos_similarity_score))
         self._metrics["pos_certainty_score"].append(float(pos_certainty_score))
         self._metrics["neg_similarity_score"].append(float(neg_similarity_score))
