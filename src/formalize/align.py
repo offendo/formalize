@@ -167,7 +167,7 @@ class FastLanguageTrainer(SFTTrainer):
         inputs["output_hidden_states"] = True
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
         ce_loss = ce_loss * inputs["aligned"]  # only want to count the positive examples
-        ce_loss = ce_loss.mean()
+        ce_loss = ce_loss.sum() / inputs["aligned"].sum() if inputs["aligned"].sum() else 0.0
 
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
@@ -194,12 +194,24 @@ class FastLanguageTrainer(SFTTrainer):
         # Do cosine similarity between pairs, and compare against the labels
         similarity_score = torch.cosine_similarity(nl_state, fl_state, dim=-1)
 
-        cl_loss = F.mse_loss((similarity_score + 1) / 2, inputs["aligned"])
+        cl_loss = F.mse_loss((similarity_score + 1) / 2, inputs["aligned"].float())
 
-        pos_similarity_score = sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"])
-        pos_certainty_score = sum(certainty_score) / sum(inputs["aligned"])
-        neg_similarity_score = sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
-        neg_certainty_score = sum(certainty_score) / sum(1 - inputs["aligned"])
+        pos_similarity_score = (
+            sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
+        )
+        pos_certainty_score = (
+            sum(certainty_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
+        )
+        neg_similarity_score = (
+            sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
+            if sum(1 - inputs["aligned"])
+            else 0.0
+        )
+        neg_certainty_score = (
+            sum(certainty_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
+            if sum(1 - inputs["aligned"])
+            else 0.0
+        )
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -279,7 +291,7 @@ class CustomCollator(DataCollatorForLanguageModeling):
         texts = [ex.pop("text") for ex in examples]
         inputs = [ex.pop("input") for ex in examples]
         outputs = [ex.pop("output") for ex in examples]
-        misalign_types = [ex.pop("misalign_type") for ex in examples]
+        misalign_types = [ex.pop("misalign_type") if "misalign_type" in ex else None for ex in examples]
         batch = super().__call__(examples, *args, **kwargs)
         batch["input_length"] = input_length
         if labels is not None:
@@ -297,17 +309,17 @@ def compute_metrics(evals: EvalPrediction):
     p, r, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
     roc_auc = roc_auc_score(labels, scores)
     results = {}
-    print("=" * 100)
+    # print("=" * 100)
     for name, val in {"cert": cert_score, "sim": sim_score, "mean": scores}.items():
         score_p = [c for c, l in zip(val, labels) if l == 1]
         score_p_mean = sum(score_p) / len(score_p)
         score_n = [c for c, l in zip(val, labels) if l == 0]
         score_n_mean = sum(score_n) / len(score_n)
-        print(f"Positive {name} scores:  {score_p_mean}")
-        print(f"Negative {name} scores:  {score_n_mean}")
+        # print(f"Positive {name} scores:  {score_p_mean}")
+        # print(f"Negative {name} scores:  {score_n_mean}")
         results[f"{name}_score_pos"] = score_p_mean
         results[f"{name}_score_neg"] = score_n_mean
-    print("=" * 100)
+    # print("=" * 100)
     # get scores of each type
     return {"precision": p, "recall": r, "f1": f1, "roc_auc": roc_auc, **results}
 
@@ -370,6 +382,7 @@ def train(
         gradient_checkpointing=gradient_checkpointing,
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=eval_steps,
+        save_total_limit=2,
         eval_steps=eval_steps,
         eval_strategy="steps",
         save_strategy="steps",
@@ -386,9 +399,9 @@ def train(
         eval_dataset, tokenizer, max_tokens=max_tokens, add_special_representation=add_special_representation
     )
     all_test_data = all_test_data.shuffle(seed=seed)
-    eval_data = Dataset.from_list(
-        [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
-    )
+    # eval_data = Dataset.from_list(
+    #     [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
+    # )
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
@@ -396,7 +409,7 @@ def train(
         data_collator=collator,
         train_dataset=data["train"],
         compute_metrics=compute_metrics,
-        eval_dataset=eval_data,
+        eval_dataset=data["validation"],
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     trainer.train()
