@@ -177,9 +177,8 @@ class FastLanguageTrainer(SFTTrainer):
             fl_index = inputs["fl_token_index"]
         else:
             # Get the index of the end of the prompt, so we can get the representation of the natural language
-            nl_index = inputs[
-                "input_length"
-            ]  # this index should be the " \n" token; to get start of FL you need to add 1
+            # nl_index should be the " \n" token; to get start of FL you need to add 1
+            nl_index = inputs["input_length"]
             fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
@@ -414,9 +413,7 @@ def train(
 
     test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
     test_data = test_data.shuffle(seed=seed)
-    # eval_data = Dataset.from_list(
-    #     [example for key in all_test_data.keys() for example in all_test_data[key].select(range(100))]
-    # )
+    eval_data = {key: val.select(200) for key, val in test_data.items()}
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
@@ -424,13 +421,14 @@ def train(
         data_collator=collator,
         train_dataset=train_data,
         compute_metrics=compute_metrics,
-        eval_dataset=data["validation"].select(range(200)),
+        eval_dataset=eval_data,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     trainer.train()
     trainer.save_model(output_dir)
     for split in test_data.keys():
-        outputs = trainer.predict(data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split)  # type:ignore
+        split_data = test_data[split].shuffle(seed).select(range(1000))
+        outputs = trainer.predict(split_data, metric_key_prefix=split)
         (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
@@ -490,9 +488,8 @@ def test(
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
     for split in test_data.keys():
-        outputs = trainer.predict(
-            test_data[split].shuffle(seed).select(range(1000)), metric_key_prefix=split
-        )  # type:ignore
+        split_data = test_data[split].shuffle(seed).select(range(1000))
+        outputs = trainer.predict(split_data, metric_key_prefix=split)
         (cert_score, sim_score), (_, labels), metrics = outputs  # type:ignore
         pprint(metrics)
         with open(Path(output_dir, f"{split}_metrics.json"), "w") as f:
