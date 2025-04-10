@@ -168,6 +168,7 @@ class FastLanguageTrainer(SFTTrainer):
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
         ce_loss = ce_loss * inputs["aligned"]  # only want to count the positive examples
         ce_loss = ce_loss.sum() / inputs["aligned"].sum() if inputs["aligned"].sum() else 0.0
+        ce_loss = 2 * ce_loss  # weight the loss 2x because only half the examples are relevant to this loss
 
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
