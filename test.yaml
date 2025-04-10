@@ -31,7 +31,11 @@ spec:
           workingDir: /app/formalize
           env:
             - name: WANDB_RUN
-              value: "bs8"
+              value: "llama_8b_bs4_with_misaligned"
+            - name: MODEL_NAME
+              value: "/volume/formal_align_llama_8b_bs4_with_misaligned"
+            - name: ADAPTER_NAME
+              value: ""
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -43,11 +47,11 @@ spec:
             limits:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "6"
+              nvidia.com/gpu: "2"
             requests:
               memory: 32Gi
               cpu: 2
-              nvidia.com/gpu: "6"
+              nvidia.com/gpu: "2"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-llama3b-central
+  name: nilay-formalize-train-llama8b-lora
 spec:
   template:
     spec:
@@ -31,9 +31,9 @@ spec:
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "meta-llama/Llama-3.2-3B"
+              value: "meta-llama/Llama-3.1-8B"
             - name: WANDB_RUN
-              value: "llama_3b_full_central"
+              value: "llama_8b_bs4_with_misaligned"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
@@ -43,21 +43,21 @@ spec:
             - name: EPOCHS
               value: "2"
             - name: BATCH_SIZE
-              value: "8"
+              value: "4"
             - name: GRAD_ACC
-              value: "8"
+              value: "4"
             - name: EVAL_STEPS
-              value: "250"
+              value: "500"
             - name: GRAD_CKPT
               value: ""
             - name: LORA_RANK
-              value: "-1"
+              value: "256"
             - name: ADD_SPECIAL_REPRESENTATION
               value: ""
           volumeMounts:
             - name: git-repo
               mountPath: /app
-            - name: nilay-data-volume-rwm-central
+            - name: nilay-data-volume-rwm
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
@@ -101,16 +101,16 @@ spec:
               memory: 4Gi
               cpu: 1
           volumeMounts:
-            - name: nilay-data-volume-rwm-central
+            - name: nilay-data-volume-rwm
               mountPath: /volume
       securityContext:
         fsGroup: 101
       volumes:
         - name: git-repo
           emptyDir: {}
-        - name: nilay-data-volume-rwm-central
+        - name: nilay-data-volume-rwm
           persistentVolumeClaim:
-            claimName: nilay-data-volume-rwm-central
+            claimName: nilay-data-volume-rwm
         - name: git-secret
           secret:
             defaultMode: 0400

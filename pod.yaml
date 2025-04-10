@@ -29,19 +29,19 @@ spec:
         - name: WANDB_RUN
           value: "debug"
         - name: LR
-          value: "1e-5"
+          value: "2e-5"
         - name: OPTIMIZER
           value: "paged_adamw_8bit"
         - name: SCHEDULER
           value: "cosine"
         - name: EPOCHS
-          value: "1"
+          value: "2"
         - name: BATCH_SIZE
-          value: "8"
+          value: "4"
         - name: GRAD_ACC
-          value: "1"
+          value: "4"
         - name: EVAL_STEPS
-          value: "10"
+          value: "500"
         - name: GRAD_CKPT
           value: ""
         - name: LORA_RANK
