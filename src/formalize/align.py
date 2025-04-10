@@ -414,7 +414,7 @@ def train(
 
     test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
     test_data = test_data.shuffle(seed=seed)
-    eval_data = {key: val.select(200) for key, val in test_data.items()}
+    eval_data = {key: val.select(range(200)) for key, val in test_data.items()}
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
