@@ -283,6 +283,10 @@ def load_data(
 
 
 class CustomCollator(DataCollatorForLanguageModeling):
+    def __init__(self, *args, mask_inputs: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mask_inputs = mask_inputs
+
     def __call__(self, examples, *args, **kwargs):
         if "aligned" in examples[0]:
             labels = [ex.pop("aligned") for ex in examples]
@@ -298,9 +302,10 @@ class CustomCollator(DataCollatorForLanguageModeling):
         batch = super().__call__(examples, *args, **kwargs)
         batch["input_length"] = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
 
-        # Mask out the input part so the model only trains on completions
-        for label, length in zip(batch["labels"], batch["input_length"]):
-            label[:length] = -100
+        if self.mask_inputs:
+            # Mask out the input part so the model only trains on completions
+            for label, length in zip(batch["labels"], batch["input_length"]):
+                label[:length] = -100
 
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
@@ -360,6 +365,7 @@ def train(
     eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
     add_special_representation: Annotated[bool, Option("--add-special-representation", help="add <|end_of_nl/fl|> tokens", rich_help_panel="Training Config")] = False,
+    mask_inputs: Annotated[bool, Option("--mask-inputs", help="train on completions only", rich_help_panel="Training Config")] = False,
     debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
@@ -404,7 +410,7 @@ def train(
         include_for_metrics=["loss", "inputs"],
         label_names=["label", "aligned"],
     )
-    collator = CustomCollator(tokenizer=tokenizer, mlm=False)
+    collator = CustomCollator(tokenizer=tokenizer, mask_inputs=mask_inputs, mlm=False)
     data = load_data(dataset, tokenizer, max_tokens=max_tokens)
     data = data.shuffle(seed=seed)
     positives = data.filter(lambda ex: ex["aligned"] == 1)

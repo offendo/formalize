@@ -7,7 +7,7 @@ export WANDB_PROJECT='formal-align'
 
 if [[ $ADAPTER_NAME = "" ]]; then
   export ADAPTER=""
-else;
+else
   export ADAPTER="--adapter-name /volume/formal_align_$ADAPTER_NAME"
 fi
 
@@ -18,4 +18,4 @@ python src/formalize/align.py test \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
     --max-tokens 2048 \
     --seed 1234 \
-    --batch-size 2
+    --batch-size 4
