@@ -168,7 +168,6 @@ class FastLanguageTrainer(SFTTrainer):
         ce_loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
         ce_loss = ce_loss * inputs["aligned"]  # only want to count the positive examples
         ce_loss = ce_loss.sum() / inputs["aligned"].sum() if inputs["aligned"].sum() else 0.0
-        ce_loss = 2 * ce_loss  # weight the loss 2x because only half the examples are relevant to this loss
 
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
@@ -184,7 +183,7 @@ class FastLanguageTrainer(SFTTrainer):
 
         certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
         for i, (sequence, logits, start, stop) in enumerate(
-            zip(inputs["input_ids"], outputs.logits, nl_index + 1, fl_index)
+            zip(inputs["input_ids"], outputs.logits, nl_index + 2, fl_index)
         ):
             log_probs = torch.log_softmax(logits[start:stop], dim=-1)
             token_probs = log_probs[torch.arange(len(log_probs)), sequence[start + 1 : stop + 1]]
@@ -195,34 +194,15 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Do cosine similarity between pairs, and compare against the labels
         cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
-        similarity_score = (cos + 1) / 2
-        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].float())
 
-        # pos_similarity_score = (
-        #     sum(similarity_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
-        # )
-        # pos_certainty_score = (
-        #     sum(certainty_score * inputs["aligned"]) / sum(inputs["aligned"]) if sum(inputs["aligned"]) else 0.0
-        # )
-        # neg_similarity_score = (
-        #     sum(similarity_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
-        #     if sum(1 - inputs["aligned"]) > 0
-        #     else 0.0
-        # )
-        # neg_certainty_score = (
-        #     sum(certainty_score * (1 - inputs["aligned"])) / sum(1 - inputs["aligned"])
-        #     if sum(1 - inputs["aligned"]) > 0
-        #     else 0.0
-        # )
+        # Use sigmoid instead
+        similarity_score = torch.sigmoid(cos)
+        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].float())
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(float(ce_loss))
         self._metrics["cl_loss"].append(cl_loss.item())
-        # self._metrics["pos_similarity_score"].append(float(pos_similarity_score))
-        # self._metrics["pos_certainty_score"].append(float(pos_certainty_score))
-        # self._metrics["neg_similarity_score"].append(float(neg_similarity_score))
-        # self._metrics["neg_certainty_score"].append(float(neg_certainty_score))
 
         new_outputs = FormalAlignOutput(
             loss=loss, logits=outputs.logits, predictions=(certainty_score, similarity_score)
