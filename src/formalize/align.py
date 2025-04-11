@@ -379,6 +379,7 @@ def train(
         adam_beta2=0.99,
         weight_decay=0.0,
         warmup_ratio=0.03,
+        label_smoothing_factor=0.1,
         lr_scheduler_type=scheduler,
         optim=optimizer,
         logging_steps=25,
@@ -391,6 +392,8 @@ def train(
         num_train_epochs=num_epochs,  # Set to 1 for a full training run
         save_steps=eval_steps,
         save_total_limit=2,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_minif2f_test_f1",
         eval_steps=eval_steps,
         eval_strategy="steps",
         save_strategy="steps",
