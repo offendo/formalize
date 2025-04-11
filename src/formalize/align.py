@@ -340,6 +340,7 @@ def train(
     optimizer: Annotated[str, Option(help="optimizer", rich_help_panel="Training Config")] = "paged_adamw_8bit",
     num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 1,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
+    negative_sample_ratio: Annotated[float, Option(help="% of positive dataset to sample as negative examples", rich_help_panel="Training Config")] = 1.0,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
     gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
     eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
@@ -365,10 +366,10 @@ def train(
         adam_beta2=0.99,
         weight_decay=0.0,
         warmup_ratio=0.03,
-        label_smoothing_factor=0.1,
+        label_smoothing_factor=0.0,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=25,
+        logging_steps=20,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
@@ -397,8 +398,10 @@ def train(
     negatives = data.filter(lambda ex: ex["aligned"] == 0)
     print("Positive dataset: ", positives)
     print("Negatives dataset: ", negatives)
+
     # Only select some of the negative examples to make training more balanaced
-    train_data = concatenate_datasets([positives["train"], negatives["train"].select(range(len(positives["train"])))])
+    num_neg_examples = int(negative_sample_ratio * len(positives["train"]))
+    train_data = concatenate_datasets([positives["train"], negatives["train"].select(range(num_neg_examples))])
     train_data = train_data.shuffle(seed=seed)
 
     test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
