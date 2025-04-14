@@ -18,7 +18,7 @@ python src/formalize/align.py train \
     --max-tokens 2048 \
     --seed $SEED \
     --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
-    --num-epochs $EPOCHS \
+    --num-epochs $EPOCHS --negative-sample-ratio $NEG_RATIO \
     --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
     $GRAD_CKPT \
     $ADD_SPECIAL_REPRESENTATION \
