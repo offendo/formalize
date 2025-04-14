@@ -196,8 +196,8 @@ class FastLanguageTrainer(SFTTrainer):
         cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
 
         # Use sigmoid instead
-        similarity_score = torch.sigmoid(cos)
-        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].float())
+        similarity_score = cos
+        cl_loss = F.mse_loss((cos + 1) / 2, inputs["aligned"].float())
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
