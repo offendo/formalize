@@ -184,10 +184,10 @@ class FastLanguageTrainer(SFTTrainer):
         # Create input mask to mask out the prompt & padding for certainty score computation
         B, N, V = outputs.logits.shape
         input_mask = inputs["input_mask"][:, 1:]
-        log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1] # predictions of ids 1->end
-        idxs = inputs['input_ids'][:, 1:]
+        log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1]  # predictions of ids 1->end
+        idxs = inputs["input_ids"][:, 1:]
         token_log_probs = torch.gather(log_probs.reshape(-1, V), 1, idxs.reshape(-1, 1)).view(B, -1)
-        fl_token_log_probs = token_log_probs * input_mask # zero out the ones we don't care about
+        fl_token_log_probs = token_log_probs * input_mask  # zero out the ones we don't care about
         mean_log_probs = fl_token_log_probs.sum(dim=-1) / input_mask.sum(dim=-1)
         certainty_score = torch.exp(mean_log_probs)
 
@@ -199,7 +199,7 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Use sigmoid instead
         similarity_score = cos
-        cl_loss = F.mse_loss((cos + 1) / 2, inputs["aligned"].float())
+        cl_loss = F.mse_loss((cos + 1) / 2, inputs["aligned"].to(cos.dtype))
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -290,13 +290,13 @@ class CustomCollator(DataCollatorForLanguageModeling):
                 label[:length] = -100
 
         # Mask out the input part
-        input_mask = torch.zeros_like(batch['input_ids'], dtype=torch.long)
+        input_mask = torch.zeros_like(batch["input_ids"], dtype=torch.long)
         for i, length in enumerate(batch["input_length"]):
             input_mask[i, length:] = 1
-            padding_mask = batch['input_ids'][i] != self.tokenizer.pad_token_id
+            padding_mask = batch["input_ids"][i] != self.tokenizer.pad_token_id
             input_mask[i] = input_mask[i] * padding_mask
 
-        batch['input_mask'] = input_mask
+        batch["input_mask"] = input_mask
 
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
