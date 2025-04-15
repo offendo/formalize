@@ -246,9 +246,10 @@ def load_data(
             nl_end_idx.append(end_idx[0] - 1)
 
         # Do tokenization here
-        # batch = tokenizer(prompts, padding=False)
         batch = {}
+
         batch["input_ids"] = prompts
+        batch["attention_mask"] = [[1] * len(p) for p in prompts]
         batch["nl_end_idx"] = nl_end_idx
         batch["fl_start_idx"] = [nl + len(chat_marker) + 2 for nl in nl_end_idx]
         # batch["text"] = tokenizer.batch_decode(prompts)
