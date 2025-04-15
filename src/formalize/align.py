@@ -184,23 +184,12 @@ class FastLanguageTrainer(SFTTrainer):
         # Create input mask to mask out the prompt & padding for certainty score computation
         B, N, V = outputs.logits.shape
         input_mask = inputs["input_mask"][:, 1:]
-        log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1]
+        log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1] # predictions of ids 1->end
         idxs = inputs['input_ids'][:, 1:]
         token_log_probs = torch.gather(log_probs.reshape(-1, V), 1, idxs.reshape(-1, 1)).view(B, -1)
-        fl_token_log_probs = token_log_probs * input_mask
+        fl_token_log_probs = token_log_probs * input_mask # zero out the ones we don't care about
         mean_log_probs = fl_token_log_probs.sum(dim=-1) / input_mask.sum(dim=-1)
         certainty_score = torch.exp(mean_log_probs)
-
-        # Directly optimize the certainty score to match the aligned labels
-        cert_loss = F.mse_loss(certainty_score, inputs['aligned'].float())
-
-        # certainty_score = torch.zeros(B, dtype=outputs.logits.dtype, device=outputs.logits.device)
-        # for i, (sequence, logits, start, stop) in enumerate(
-        #     zip(inputs["input_ids"], outputs.logits, nl_index + 2, fl_index)
-        # ):
-        #     log_probs = torch.log_softmax(logits[start:stop], dim=-1)
-        #     token_probs = log_probs[torch.arange(len(log_probs)), sequence[start + 1 : stop + 1]]
-        #     certainty_score[i] = torch.exp(torch.mean(token_probs, dim=-1))
 
         nl_state = hidden_states[torch.arange(B), nl_index]
         fl_state = hidden_states[torch.arange(B), fl_index]
@@ -213,9 +202,8 @@ class FastLanguageTrainer(SFTTrainer):
         cl_loss = F.mse_loss((cos + 1) / 2, inputs["aligned"].float())
 
         # loss = cross entropy + contrastive loss
-        loss = ce_loss + cl_loss + cert_loss
+        loss = ce_loss + cl_loss
         self._metrics["ce_loss"].append(float(ce_loss))
-        self._metrics["cert_loss"].append(float(cert_loss))
         self._metrics["cl_loss"].append(cl_loss.item())
 
         new_outputs = FormalAlignOutput(
