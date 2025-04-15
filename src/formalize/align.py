@@ -172,14 +172,10 @@ class FastLanguageTrainer(SFTTrainer):
         # Last hidden state for contrastive loss
         hidden_states = outputs.hidden_states[-1]  # type:ignore
 
-        if "nl_token_index" in inputs:
-            nl_index = inputs["nl_token_index"]
-            fl_index = inputs["fl_token_index"]
-        else:
-            # Get the index of the end of the prompt, so we can get the representation of the natural language
-            # nl_index should be the " \n" token; to get start of FL you need to add 1
-            nl_index = inputs["input_length"]
-            fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
+        # Get the index of the end of the prompt, so we can get the representation of the natural language
+        # nl_index should be the " \n" token; to get start of FL you need to add 1
+        nl_index = inputs["input_length"]
+        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         # Create input mask to mask out the prompt & padding for certainty score computation
         B, N, V = outputs.logits.shape
@@ -198,8 +194,8 @@ class FastLanguageTrainer(SFTTrainer):
         cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
 
         # Use sigmoid instead
-        similarity_score = cos
-        cl_loss = F.mse_loss((cos + 1) / 2, inputs["aligned"].to(cos.dtype))
+        similarity_score = (cos + 1) / 2
+        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].to(cos.dtype))
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -216,19 +212,49 @@ def load_data(
     dataset_name: str,
     tokenizer: PreTrainedTokenizer,
     max_tokens: int = 2048,
-    add_special_representation: bool = False,
+    use_chat_template: bool = False,
 ) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
-    END_OF_NL = ""
-    END_OF_FL = ""
-    END_OF_NL_ID = None
-    END_OF_FL_ID = None
-    if add_special_representation:
-        END_OF_NL = "<|end_of_nl|>"
-        END_OF_FL = "<|end_of_fl|>"
-        tokenizer.add_tokens([END_OF_NL, END_OF_FL])
-        END_OF_NL_ID = tokenizer.convert_tokens_to_ids(END_OF_NL)
-        END_OF_FL_ID = tokenizer.convert_tokens_to_ids(END_OF_FL)
+
+    if "Qwen" in tokenizer.name_or_path:
+        marker = tokenizer("<|im_start|>assistant", add_special_tokens=False)["input_ids"]
+    elif "Llama" in tokenizer.name_or_path:
+        marker = tokenizer("<|start_header_id|>assistant", add_special_tokens=False)["input_ids"]
+    else:
+        raise NotImplementedError(f"tokenizer type {tokenizer.name_or_path} not supported for chat models yet")
+
+    def tokenize_chat(examples):
+        messages = []
+        prompts = []
+        input_lengths = []
+        for inp, output in zip(examples["input"], examples["output"]):
+            # Format input/output as a prompt
+            format_user = f"Translate the following statement in natural language to Lean:\n{inp}"
+            format_assistant = f"{output}"
+            ex_messages = [
+                {"role": "system", "content": "You are an expert mathematician."},
+                {"role": "user", "content": format_user},
+                {"role": "assistant", "content": format_assistant},
+            ]
+            messages.append(ex_messages)
+
+        prompts = tokenizer.apply_chat_template(messages, tokenize=True)
+        for prompt in prompts:
+            assert isinstance(prompt, list)
+            start_index = [idx for idx, ids in enumerate(prompt) if prompt[idx : idx + 2] == marker]
+            input_len = start_index[0] - 1
+            input_lengths.append(input_len)
+
+        # Do tokenization here
+        # batch = tokenizer(prompts, padding=False)
+        batch = {}
+        batch["input_ids"] = prompts
+        batch["input_length"] = input_lengths
+        # batch["text"] = tokenizer.batch_decode(prompts)
+        if "label" in examples:
+            batch["aligned"] = examples["label"]
+
+        return batch
 
     def tokenize(examples):
         prompts = []
@@ -237,7 +263,7 @@ def load_data(
             # Format input/output as a prompt
             format_input = f"Statement in natural language:\n{input} \n"
             format_output = f"Translate the statement in natural language to Lean:\n{output}"
-            format_prompt = format_input + END_OF_NL + format_output + END_OF_FL + EOS
+            format_prompt = format_input + format_output + EOS
             prompts.append(format_prompt)
 
             input_len = len(tokenizer(format_input, add_special_tokens=False).input_ids)
@@ -250,14 +276,13 @@ def load_data(
         if "label" in examples:
             batch["aligned"] = examples["label"]
 
-        if add_special_representation:
-            batch["nl_token_index"] = [example.index(END_OF_NL_ID) for example in batch["input_ids"]]
-            batch["fl_token_index"] = [example.index(END_OF_FL_ID) for example in batch["input_ids"]]
-
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
-    dataset = dataset.map(tokenize, batched=True)
+    if use_chat_template:
+        dataset = dataset.map(tokenize_chat, batched=True)
+    else:
+        dataset = dataset.map(tokenize, batched=True)
     dataset = dataset.filter(
         lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
     )
@@ -276,10 +301,10 @@ class CustomCollator(DataCollatorForLanguageModeling):
             labels = None
 
         # Remove the stuff we don't need
-        texts = [ex.pop("text") for ex in examples]
-        inputs = [ex.pop("input") for ex in examples]
-        outputs = [ex.pop("output") for ex in examples]
-        misalign_types = [ex.pop("misalign_type") if "misalign_type" in ex else None for ex in examples]
+        texts = [ex.pop("text") for ex in examples if "text" in ex]
+        inputs = [ex.pop("input") for ex in examples if "input" in ex]
+        outputs = [ex.pop("output") for ex in examples if "output" in ex]
+        misalign_types = [ex.pop("misalign_type") for ex in examples if "misalign_type" in ex]
 
         batch = super().__call__(examples, *args, **kwargs)
         batch["input_length"] = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
@@ -356,7 +381,6 @@ def train(
     gradient_checkpointing: Annotated[bool, Option("--gradient-checkpointing", help="enable gradient checkpointing", rich_help_panel="Training Config")] = False,
     eval_steps: Annotated[int, Option(help="eval steps", rich_help_panel="Training Config")] = 500,
     unsloth: Annotated[bool, Option("--unsloth", help="enable unsloth", rich_help_panel="Training Config")] = False,
-    add_special_representation: Annotated[bool, Option("--add-special-representation", help="add <|end_of_nl/fl|> tokens", rich_help_panel="Training Config")] = False,
     mask_inputs: Annotated[bool, Option("--mask-inputs", help="train on completions only", rich_help_panel="Training Config")] = False,
     debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
     # fmt:on
@@ -403,7 +427,8 @@ def train(
         label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mask_inputs=mask_inputs, mlm=False)
-    data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    is_chat_model = "instruct" in model_name.lower()
+    data = load_data(dataset, tokenizer, max_tokens=max_tokens, use_chat_template=is_chat_model)
     data = data.shuffle(seed=seed)
     positives = data.filter(lambda ex: ex["aligned"] == 1)
     negatives = data.filter(lambda ex: ex["aligned"] == 0)
@@ -415,7 +440,7 @@ def train(
     train_data = concatenate_datasets([positives["train"], negatives["train"].select(range(num_neg_examples))])
     train_data = train_data.shuffle(seed=seed)
 
-    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens)
+    test_data = load_data(eval_dataset, tokenizer, max_tokens=max_tokens, use_chat_template=is_chat_model)
     test_data = test_data.shuffle(seed=seed)
     eval_data = {key: val.select(range(200)) for key, val in test_data.items()}
     trainer = FastLanguageTrainer(
@@ -481,7 +506,8 @@ def test(
         label_names=["label", "aligned"],
     )
     collator = CustomCollator(tokenizer=tokenizer, mlm=False)
-    test_data = load_data(dataset, tokenizer, max_tokens=max_tokens)
+    is_chat_model = "instruct" in model_name.lower()
+    test_data = load_data(dataset, tokenizer, max_tokens=max_tokens, use_chat_template=is_chat_model)
     trainer = FastLanguageTrainer(
         model=model,
         processing_class=tokenizer,
