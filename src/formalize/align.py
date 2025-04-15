@@ -174,17 +174,17 @@ class FastLanguageTrainer(SFTTrainer):
 
         # Get the index of the end of the prompt, so we can get the representation of the natural language
         # nl_index should be the " \n" token; to get start of FL you need to add 1
-        nl_index = inputs["input_length"]
+        nl_index = inputs["nl_end_idx"]
         fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
 
         # Create input mask to mask out the prompt & padding for certainty score computation
         B, N, V = outputs.logits.shape
-        input_mask = inputs["input_mask"][:, 1:]
+        fl_mask = inputs["fl_mask"][:, 1:]
         log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1]  # predictions of ids 1->end
         idxs = inputs["input_ids"][:, 1:]
         token_log_probs = torch.gather(log_probs.reshape(-1, V), 1, idxs.reshape(-1, 1)).view(B, -1)
-        fl_token_log_probs = token_log_probs * input_mask  # zero out the ones we don't care about
-        mean_log_probs = fl_token_log_probs.sum(dim=-1) / input_mask.sum(dim=-1)
+        fl_token_log_probs = token_log_probs * fl_mask  # zero out the ones we don't care about
+        mean_log_probs = fl_token_log_probs.sum(dim=-1) / fl_mask.sum(dim=-1)
         certainty_score = torch.exp(mean_log_probs)
 
         nl_state = hidden_states[torch.arange(B), nl_index]
@@ -213,20 +213,21 @@ def load_data(
     tokenizer: PreTrainedTokenizer,
     max_tokens: int = 2048,
     use_chat_template: bool = False,
+    subset: float = 1.0,
 ) -> DatasetDict:
     EOS: str = tokenizer.eos_token  # type:ignore
 
     if "Qwen" in tokenizer.name_or_path:
-        marker = tokenizer("<|im_start|>assistant", add_special_tokens=False)["input_ids"]
+        chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     elif "Llama" in tokenizer.name_or_path:
-        marker = tokenizer("<|start_header_id|>assistant", add_special_tokens=False)["input_ids"]
+        chat_marker = tokenizer("<|start_header_id|>assistant", add_special_tokens=False).input_ids
     else:
         raise NotImplementedError(f"tokenizer type {tokenizer.name_or_path} not supported for chat models yet")
 
     def tokenize_chat(examples):
         messages = []
         prompts = []
-        input_lengths = []
+        nl_end_idx = []
         for inp, output in zip(examples["input"], examples["output"]):
             # Format input/output as a prompt
             format_user = f"Translate the following statement in natural language to Lean:\n{inp}"
@@ -241,37 +242,41 @@ def load_data(
         prompts = tokenizer.apply_chat_template(messages, tokenize=True)
         for prompt in prompts:
             assert isinstance(prompt, list)
-            start_index = [idx for idx, ids in enumerate(prompt) if prompt[idx : idx + 2] == marker]
-            input_len = start_index[0] - 1
-            input_lengths.append(input_len)
+            end_idx = [idx for idx, _ in enumerate(prompt) if prompt[idx : idx + len(chat_marker)] == chat_marker]
+            nl_end_idx.append(end_idx[0] - 1)
 
         # Do tokenization here
         # batch = tokenizer(prompts, padding=False)
         batch = {}
         batch["input_ids"] = prompts
-        batch["input_length"] = input_lengths
+        batch["nl_end_idx"] = nl_end_idx
+        batch["fl_start_idx"] = [nl + len(chat_marker) + 2 for nl in nl_end_idx]
         # batch["text"] = tokenizer.batch_decode(prompts)
         if "label" in examples:
             batch["aligned"] = examples["label"]
 
         return batch
 
+    marker = tokenizer("Lean statement", add_special_tokens=False).input_ids
+
     def tokenize(examples):
         prompts = []
-        input_lengths = []
-        for input, output in zip(examples["input"], examples["output"]):
+        for inp, output in zip(examples["input"], examples["output"]):
             # Format input/output as a prompt
-            format_input = f"Statement in natural language:\n{input} \n"
-            format_output = f"Translate the statement in natural language to Lean:\n{output}"
+            format_input = f"Translate the following statement in natural language to Lean:\n {inp}"
+            format_output = f"\nLean statement:\n {output}"
             format_prompt = format_input + format_output + EOS
             prompts.append(format_prompt)
 
-            input_len = len(tokenizer(format_input, add_special_tokens=False).input_ids)
-            input_lengths.append(input_len)
-
         # Do tokenization here
         batch = tokenizer(prompts, padding=False)
-        batch["input_length"] = input_lengths
+        nl_end_idx = []
+        for prompt in batch.input_ids:
+            start_index = [idx for idx, ids in enumerate(prompt) if prompt[idx : idx + len(marker)] == marker]
+            input_len = start_index[0] - 1
+            nl_end_idx.append(input_len)
+        batch["nl_end_idx"] = nl_end_idx
+        batch["fl_start_idx"] = [nl + len(marker) + 2 for nl in nl_end_idx]
         batch["text"] = prompts
         if "label" in examples:
             batch["aligned"] = examples["label"]
@@ -279,13 +284,13 @@ def load_data(
         return batch
 
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
+    if subset < 1.0:
+        dataset = DatasetDict({key: val.select(range(int(len(val) * subset))) for key, val in dataset.items()})
     if use_chat_template:
         dataset = dataset.map(tokenize_chat, batched=True)
     else:
         dataset = dataset.map(tokenize, batched=True)
-    dataset = dataset.filter(
-        lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["input_length"]
-    )
+    dataset = dataset.filter(lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["nl_end_idx"])
     return dataset
 
 
@@ -307,21 +312,21 @@ class CustomCollator(DataCollatorForLanguageModeling):
         misalign_types = [ex.pop("misalign_type") for ex in examples if "misalign_type" in ex]
 
         batch = super().__call__(examples, *args, **kwargs)
-        batch["input_length"] = torch.tensor([ex["input_length"] for ex in examples], dtype=torch.long)
+        batch["nl_end_idx"] = torch.tensor([ex["nl_end_idx"] for ex in examples], dtype=torch.long)
 
         if self.mask_inputs:
             # Mask out the input part so the model only trains on completions
-            for label, length in zip(batch["labels"], batch["input_length"]):
+            for label, length in zip(batch["labels"], batch["nl_end_idx"]):
                 label[:length] = -100
 
         # Mask out the input part
-        input_mask = torch.zeros_like(batch["input_ids"], dtype=torch.long)
-        for i, length in enumerate(batch["input_length"]):
-            input_mask[i, length:] = 1
+        fl_mask = torch.zeros_like(batch["input_ids"], dtype=torch.long)
+        for i, length in enumerate(batch["fl_start_idx"]):
+            fl_mask[i, length:] = 1
             padding_mask = batch["input_ids"][i] != self.tokenizer.pad_token_id
-            input_mask[i] = input_mask[i] * padding_mask
+            fl_mask[i] = fl_mask[i] * padding_mask
 
-        batch["input_mask"] = input_mask
+        batch["fl_mask"] = fl_mask
 
         if labels is not None:
             batch["aligned"] = torch.tensor(labels, dtype=torch.long)
