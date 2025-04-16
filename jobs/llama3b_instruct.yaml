@@ -1,0 +1,125 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nilay-formalize-train-llama3b-instruct
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                      - NVIDIA-GeForce-RTX-3090
+                      - NVIDIA-GeForce-RTX-4090
+                      - NVIDIA-A100-SXM4-80GB
+                      - NVIDIA-A100-80GB-PCIe
+                      - NVIDIA-A100-80GB-PCIe
+                      - NVIDIA-A40
+                        # - key: nvidia.com/cuda.driver.major
+                        #   operator: In
+                        #   values: ["525", "530", "535"]
+      imagePullSecrets:
+        - name: nilay-ghcr-key
+      containers:
+        - name: train
+          image: ghcr.io/offendo/formalize:latest
+          command: ["bash", "run.sh"]
+          workingDir: /app/formalize
+          env:
+            - name: MODEL_NAME
+              value: "meta-llama/Llama-3.2-3B-Instruct"
+            - name: WANDB_RUN
+              value: "llama_8b_instruct"
+            - name: LR
+              value: "2e-5"
+            - name: OPTIMIZER
+              value: "paged_adamw_8bit"
+            - name: SCHEDULER
+              value: "cosine"
+            - name: EPOCHS
+              value: "2"
+            - name: BATCH_SIZE
+              value: "4"
+            - name: GRAD_ACC
+              value: "4"
+            - name: EVAL_STEPS
+              value: "500"
+            - name: GRAD_CKPT
+              value: ""
+            - name: LORA_RANK
+              value: "256"
+            - name: NEG_RATIO
+              value: "1"
+            - name: ADD_SPECIAL_REPRESENTATION
+              value: ""
+          volumeMounts:
+            - name: git-repo
+              mountPath: /app
+            - name: nilay-data-volume-rwm
+              mountPath: /volume
+            - name: api-tokens
+              mountPath: /etc/api-tokens
+          resources:
+            limits:
+              memory: 32Gi
+              cpu: 2
+              nvidia.com/gpu: "4"
+            requests:
+              memory: 32Gi
+              cpu: 2
+              nvidia.com/gpu: "4"
+      initContainers:
+        - name: git-sync
+          image: registry.k8s.io/git-sync/git-sync:v4.1.0
+          args:
+            - "--repo=git@github.com:offendo/formalize"
+            - "--depth=1"
+            - "--one-time"
+            - "--root=/git"
+          resources:
+            limits:
+              memory: 4Gi
+              cpu: 1
+            requests:
+              memory: 4Gi
+              cpu: 1
+          volumeMounts:
+            - name: git-repo
+              mountPath: /git
+            - name: git-secret
+              mountPath: /etc/git-secret
+        - name: chmod
+          image: alpine:latest
+          command: ["chmod", "a+rw", "/volume/"]
+          resources:
+            limits:
+              memory: 4Gi
+              cpu: 1
+            requests:
+              memory: 4Gi
+              cpu: 1
+          volumeMounts:
+            - name: nilay-data-volume-rwm
+              mountPath: /volume
+      securityContext:
+        fsGroup: 101
+      volumes:
+        - name: git-repo
+          emptyDir: {}
+        - name: nilay-data-volume-rwm
+          persistentVolumeClaim:
+            claimName: nilay-data-volume-rwm
+        - name: git-secret
+          secret:
+            defaultMode: 0400
+            secretName: nilay-git-creds
+        - name: api-tokens
+          secret:
+            defaultMode: 0400
+            secretName: nilay-api-tokens
+      restartPolicy: Never
+  backoffLimit: 0

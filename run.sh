@@ -15,7 +15,7 @@ python src/formalize/align.py train \
     --dataset "offendo/formal-align-redux-with-misaligned" \
     --eval-dataset "offendo/formal-align-redux-test" \
     --output-dir "/volume/formal_align_$WANDB_RUN" \
-    --max-tokens 2048 \
+    --max-tokens 1024 \
     --seed $SEED \
     --learning-rate "$LR" --scheduler "$SCHEDULER" --optimizer "$OPTIMIZER" \
     --num-epochs $EPOCHS --negative-sample-ratio $NEG_RATIO \
