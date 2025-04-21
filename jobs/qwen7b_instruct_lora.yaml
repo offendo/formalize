@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-llama8b-instruct
+  name: nilay-formalize-train-qwen7b-instruct
 spec:
   template:
     spec:
@@ -31,9 +31,9 @@ spec:
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "meta-llama/Llama-3.1-8B-Instruct"
+              value: "Qwen/Qwen2.5-7B-Instruct"
             - name: WANDB_RUN
-              value: "llama_8b_lora_instruct"
+              value: "qwen_7b_lora_instruct"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
@@ -45,7 +45,7 @@ spec:
             - name: BATCH_SIZE
               value: "2"
             - name: GRAD_ACC
-              value: "8"
+              value: "32"
             - name: EVAL_STEPS
               value: "500"
             - name: GRAD_CKPT
