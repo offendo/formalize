@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-import os
+# pyright: reportPrivateImportUsage=false
 import json
+import os
 import pickle
-import pandas as pd
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
 from typing import Annotated, Optional
-from typer import Argument, Option, run as typer_run, Typer
-import typer
 
-from transformers import (
-    DataCollator,
-    DataCollatorForLanguageModeling,
-    DefaultDataCollator,
-    EvalPrediction,
-    LlamaForCausalLM,
-    PreTrainedTokenizer,
-    TrainingArguments,
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    AutoConfig,
-    Trainer,
-)
-from transformers.utils import ModelOutput
-from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
-from datasets import concatenate_datasets, load_dataset, Dataset, DatasetDict
-from peft import LoraConfig, get_peft_model, TaskType, PeftModel
-from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
-
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import typer
+from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
+from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+    DataCollatorForLanguageModeling,
+    EvalPrediction,
+    PreTrainedTokenizer,
+)
+from transformers.modeling_outputs import CausalLMOutput
+from transformers.utils import ModelOutput
+from trl import SFTConfig, SFTTrainer
+from typer import Option, Typer
 
 os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
 DEBUG = bool(os.environ.get("DEBUG", "") != "")
@@ -47,7 +44,7 @@ class FormalAlignOutput(ModelOutput):
 
 
 def load_model(
-    model_name: str,
+    model_name: str | Path,
     max_length: int,
     lora_rank: int,
     gpu_memory_utilization: float,
@@ -55,6 +52,7 @@ def load_model(
     unsloth: bool = False,
     adapter_name: str | None = None,
     debug: bool = False,
+    quantize: bool = False,
 ):
     if unsloth and debug:
         raise NotImplementedError("Can't debug in unsloth mode because the model sizes are fixed.")
@@ -93,6 +91,7 @@ def load_model(
             config,
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
+            attn_implementation="flash_attention_2",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -110,12 +109,15 @@ def load_model(
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
     else:
+        quantization_config = BitsAndBytesConfig(load_in_8bit=True) if quantize else None
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
             device_map="auto",
+            quantization_config=quantization_config,
+            attn_implementation="flash_attention_2",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -136,9 +138,10 @@ def load_model(
     return model, tokenizer
 
 
-def compute_formal_align_score(inputs, model_outputs):
-    # Last hidden state for contrastive loss
-    hidden_states = model_outputs.hidden_states[-1]  # type:ignore
+def compute_formal_align_score(inputs: dict, model_outputs: CausalLMOutput):
+    # Last hidden state for similarity computation
+    assert model_outputs.hidden_states is not None
+    hidden_states = model_outputs.hidden_states[-1]
 
     # Get the index of the end of the prompt, so we can get the representation of the natural language
     # nl_index should be the " \n" token; to get start of FL you need to add 1
@@ -196,6 +199,66 @@ class FastLanguageTrainer(SFTTrainer):
         return (loss, new_outputs) if return_outputs else loss
 
 
+def tokenize_chat(examples, marker: list[int], tokenizer: PreTrainedTokenizer):
+    messages = []
+    prompts = []
+    nl_end_idx = []
+    for inp, output in zip(examples["input"], examples["output"]):
+        # Format input/output as a prompt
+        format_user = f"Translate the following statement in natural language to Lean:\n{inp}"
+        format_assistant = f"{output}"
+        ex_messages = [
+            {"role": "system", "content": "You are an expert mathematician."},
+            {"role": "user", "content": format_user},
+            {"role": "assistant", "content": format_assistant},
+        ]
+        messages.append(ex_messages)
+
+    prompts = tokenizer.apply_chat_template(messages, tokenize=True)
+    for prompt in prompts:
+        assert isinstance(prompt, list)
+        end_idx = [idx for idx, _ in enumerate(prompt) if prompt[idx : idx + len(marker)] == marker]
+        nl_end_idx.append(end_idx[0] - 1)
+
+    # Do tokenization here
+    batch = {}
+
+    batch["input_ids"] = prompts
+    batch["attention_mask"] = [[1] * len(p) for p in prompts]
+    batch["nl_end_idx"] = nl_end_idx
+    batch["fl_start_idx"] = [nl + len(marker) + 2 for nl in nl_end_idx]
+    # batch["text"] = tokenizer.batch_decode(prompts)
+    if "label" in examples:
+        batch["aligned"] = examples["label"]
+
+    return batch
+
+
+def tokenize(examples, marker: list[int], tokenizer: PreTrainedTokenizer):
+    prompts = []
+    for inp, output in zip(examples["input"], examples["output"]):
+        # Format input/output as a prompt
+        format_input = f"Translate the following statement in natural language to Lean:\n {inp}"
+        format_output = f"\nLean statement:\n {output}"
+        format_prompt = format_input + format_output + EOS
+        prompts.append(format_prompt)
+
+    # Do tokenization here
+    batch = tokenizer(prompts, padding=False)
+    nl_end_idx = []
+    for prompt in batch.input_ids:
+        start_index = [idx for idx, ids in enumerate(prompt) if prompt[idx : idx + len(marker)] == marker]
+        input_len = start_index[0] - 1
+        nl_end_idx.append(input_len)
+    batch["nl_end_idx"] = nl_end_idx
+    batch["fl_start_idx"] = [nl + len(marker) + 2 for nl in nl_end_idx]
+    batch["text"] = prompts
+    if "label" in examples:
+        batch["aligned"] = examples["label"]
+
+    return batch
+
+
 def load_data(
     dataset_name: str,
     tokenizer: PreTrainedTokenizer,
@@ -203,82 +266,25 @@ def load_data(
     use_chat_template: bool = False,
     subset: float = 1.0,
 ) -> DatasetDict:
-    EOS: str = tokenizer.eos_token  # type:ignore
-
+    # Completion markers for chat models/non-chat models
     if "Qwen" in tokenizer.name_or_path:
         chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     elif "Llama" in tokenizer.name_or_path:
         chat_marker = tokenizer("<|start_header_id|>assistant", add_special_tokens=False).input_ids
     else:
         raise NotImplementedError(f"tokenizer type {tokenizer.name_or_path} not supported for chat models yet")
-
-    def tokenize_chat(examples):
-        messages = []
-        prompts = []
-        nl_end_idx = []
-        for inp, output in zip(examples["input"], examples["output"]):
-            # Format input/output as a prompt
-            format_user = f"Translate the following statement in natural language to Lean:\n{inp}"
-            format_assistant = f"{output}"
-            ex_messages = [
-                {"role": "system", "content": "You are an expert mathematician."},
-                {"role": "user", "content": format_user},
-                {"role": "assistant", "content": format_assistant},
-            ]
-            messages.append(ex_messages)
-
-        prompts = tokenizer.apply_chat_template(messages, tokenize=True)
-        for prompt in prompts:
-            assert isinstance(prompt, list)
-            end_idx = [idx for idx, _ in enumerate(prompt) if prompt[idx : idx + len(chat_marker)] == chat_marker]
-            nl_end_idx.append(end_idx[0] - 1)
-
-        # Do tokenization here
-        batch = {}
-
-        batch["input_ids"] = prompts
-        batch["attention_mask"] = [[1] * len(p) for p in prompts]
-        batch["nl_end_idx"] = nl_end_idx
-        batch["fl_start_idx"] = [nl + len(chat_marker) + 2 for nl in nl_end_idx]
-        # batch["text"] = tokenizer.batch_decode(prompts)
-        if "label" in examples:
-            batch["aligned"] = examples["label"]
-
-        return batch
-
     marker = tokenizer("Lean statement", add_special_tokens=False).input_ids
 
-    def tokenize(examples):
-        prompts = []
-        for inp, output in zip(examples["input"], examples["output"]):
-            # Format input/output as a prompt
-            format_input = f"Translate the following statement in natural language to Lean:\n {inp}"
-            format_output = f"\nLean statement:\n {output}"
-            format_prompt = format_input + format_output + EOS
-            prompts.append(format_prompt)
-
-        # Do tokenization here
-        batch = tokenizer(prompts, padding=False)
-        nl_end_idx = []
-        for prompt in batch.input_ids:
-            start_index = [idx for idx, ids in enumerate(prompt) if prompt[idx : idx + len(marker)] == marker]
-            input_len = start_index[0] - 1
-            nl_end_idx.append(input_len)
-        batch["nl_end_idx"] = nl_end_idx
-        batch["fl_start_idx"] = [nl + len(marker) + 2 for nl in nl_end_idx]
-        batch["text"] = prompts
-        if "label" in examples:
-            batch["aligned"] = examples["label"]
-
-        return batch
-
+    # Load the data and filter to a small subset if desired
     dataset: DatasetDict = load_dataset(dataset_name)  # type:ignore
     if subset < 1.0:
         dataset = DatasetDict({key: val.select(range(int(len(val) * subset))) for key, val in dataset.items()})
+
+    # Tokenize using either chat or non-chat tokenization function
     if use_chat_template:
-        dataset = dataset.map(tokenize_chat, batched=True)
+        dataset = dataset.map(lambda batch: tokenize_chat(batch, chat_marker, tokenizer), batched=True)
     else:
-        dataset = dataset.map(tokenize, batched=True)
+        dataset = dataset.map(lambda batch: tokenize(batch, marker, tokenizer), batched=True)
     dataset = dataset.filter(lambda ex: len(ex["input_ids"]) <= max_tokens and len(ex["input_ids"]) >= ex["nl_end_idx"])
     return dataset
 
