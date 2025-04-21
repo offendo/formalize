@@ -91,7 +91,6 @@ def load_model(
             config,
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
-            attn_implementation="flash_attention_2",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -117,7 +116,6 @@ def load_model(
             torch_dtype=torch.bfloat16,
             device_map="auto",
             quantization_config=quantization_config,
-            attn_implementation="flash_attention_2",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)

@@ -2,15 +2,25 @@
 # pyright: reportPrivateImportUsage=false
 import re
 import torch
+import typer
+import logging
+
 from pathlib import Path
+
 from typing import Annotated
-from typer import Argument, Option, run as typer_run
+from typer import Argument, Option
 from datasets import load_dataset, Dataset, DatasetDict
 from trl import GRPOConfig, GRPOTrainer
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel, LoraConfig, TaskType, get_peft_model
-from formalize.align import CustomCollator, compute_formal_align_score, load_model as load_align_model, tokenize_chat
+from align import CustomCollator, compute_formal_align_score, load_model as load_align_model, tokenize_chat
+from more_itertools import chunked
 
+typer.core.rich = None
+app = typer.Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
 
 def load_model(
     model_name: str | Path,
@@ -47,6 +57,7 @@ def load_model(
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
+        logging.info(f"Loaded model {model_name} in DEBUG mode.")
     else:
         quantization_config = BitsAndBytesConfig(load_in_8bit=True) if quantize else None
         model = AutoModelForCausalLM.from_pretrained(
@@ -73,7 +84,10 @@ def load_model(
         tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
+        logging.info(f"Loaded model {model_name} in PRODUCTION mode.")
 
+    tokenizer.padding_side = 'left'
+    logging.info("Using left-padding for generation model.")
     return model, tokenizer
 
 
@@ -83,10 +97,22 @@ def load_data(dataset_name: str):
         ds = ds.rename_column("informal_prefix", "natural_language")
 
     assert "natural_language" in ds.column_names  # type:ignore
+    def apply_prompt(examples):
+        prompts = [
+            [
+                {'role': 'system', 'content': "You are an expert mathematician and fluent in reasoning in Lean 4."},
+                {'role': 'user',   'content': f"Translate the following natural language statement into Lean 4:\n {nl}"},
+            ]
+            for nl in examples['natural_language']
+        ]
+        return {'prompt': prompts}
+    logging.info(f"Loaded dataset {dataset_name}")
+    ds = ds.map(apply_prompt, batched=True)
+    logging.info(f"Formatted data into message lists.")
     return ds
 
 
-def make_formal_align_reward_fn(formal_align_model_path: str | Path):
+def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: bool = False):
     align_model, align_tokenizer = load_align_model(
         formal_align_model_path,
         max_length=2048,
@@ -95,33 +121,47 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path):
         unsloth=False,
         debug=False,
         seed=1234,
+        quantize=quantize,
     )
+    logging.info(f"Loaded alignment model from {formal_align_model_path}")
     chat_marker = align_tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
-    collator = CustomCollator(tokenizer=align_tokenizer, mask_inputs=False)
+    collator = CustomCollator(tokenizer=align_tokenizer, mask_inputs=False, mlm=False)
 
     def align_reward_fn(completions: list[list[dict]], natural_language: list[str], **kwargs):
         # completions will be in message format, so a list of [{'role': ..., 'content': ...}]
         # the inner list has length equal to the number of completions asked for (?)
         completion_content = [comp[0]["content"] for comp in completions]
-        examples = [{"input": nl, "output": fl} for nl, fl in zip(completion_content, natural_language)]
+        examples = {'input': natural_language, 'output': completion_content}
         batch = tokenize_chat(examples, chat_marker, align_tokenizer)
 
         # Convert the dict[list] into list[dict] because that's what the collator expects
-        uncollated = [{} for _ in examples]
+        uncollated = [{} for _ in natural_language]
         for key, val in batch.items():
             for i, v in enumerate(val):
                 uncollated[i][key] = v
 
+        ex = align_tokenizer.decode(uncollated[0]['input_ids'])
+        logging.debug(f"Formatted and tokenized reward inputs: {ex}")
+
         # Now we collate it, which converts it back into dict[list], but with some extra processing
-        model_inputs = collator(uncollated)
+        cert_scores = []
+        sim_scores = []
+        for batch in chunked(uncollated, 1):
+            model_inputs = collator(uncollated)
 
-        # And finally convert it all over to the device
-        for key, val in model_inputs:
-            model_inputs[key] = val.to(align_model.device)
-        model_output = align_model(**model_inputs)
-        scores = compute_formal_align_score(model_inputs, model_output)
+            # And finally convert it all over to the device
+            for key, val in model_inputs.items():
+                model_inputs[key] = val.to(align_model.device)
 
-        return list(scores["certainty_score"] + scores["similarity_score"])
+            # Pass it to the model & compute scores
+            model_output = align_model(**model_inputs)
+            scores = compute_formal_align_score(model_inputs, model_output)
+
+            cert_scores.extend(scores['certainty_score'].view(-1).tolist())
+            sim_scores.extend(scores['similarity_score'].view(-1).tolist())
+            
+
+        return [c + s for c,s in zip(cert_scores, sim_scores)]
 
     return align_reward_fn
 
@@ -137,16 +177,17 @@ def make_max_thinking_length_reward_fn(max_length):
     return max_thinking_length_reward_fn
 
 
-def get_reward_fns(alignment_model_path: str | None = None, max_thinking_length: int = -1):
+def get_reward_fns(alignment_model_path: str | None = None, max_thinking_length: int = -1, quantize_alignment_model: bool = False):
     fns = []
     if alignment_model_path is not None:
-        fns.append(make_formal_align_reward_fn(alignment_model_path))
+        fns.append(make_formal_align_reward_fn(alignment_model_path, quantize=quantize_alignment_model))
     if max_thinking_length > 0:
         fns.append(make_max_thinking_length_reward_fn(max_thinking_length))
 
     return fns
 
 
+@app.command()
 def train(
     # fmt:off
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
@@ -166,15 +207,18 @@ def train(
     num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 5,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
+    debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
+    quantize_alignment_model: Annotated[bool, Option("--quantize-alignment-model", help="quantize alignment model", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
     model, tokenizer = load_model(
         model_name,
         lora_rank=lora_rank,
+        debug=debug,
     )
 
     training_args = GRPOConfig(
-        use_vllm=True,  # use vLLM for fast inference!
+        use_vllm=False,  # use vLLM for fast inference!
         learning_rate=learning_rate,
         adam_beta1=0.9,
         adam_beta2=0.99,
@@ -182,7 +226,7 @@ def train(
         warmup_ratio=0.1,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=1,
+        logging_steps=5,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
@@ -197,16 +241,17 @@ def train(
         output_dir=output_dir,
         seed=seed,
     )
+    rewards = get_reward_fns(alignment_model_path=alignment_model_path, max_thinking_length=max_thinking_length, quantize_alignment_model=quantize_alignment_model)
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
-        reward_funcs=get_reward_fns(alignment_model_path=alignment_model_path, max_thinking_length=max_thinking_length),
+        reward_funcs=rewards,
         args=training_args,
-        train_dataset=load_data(dataset)["train"],
+        train_dataset=load_data(dataset),
     )
     trainer.train()
     trainer.save_model(output_dir)
 
 
 if __name__ == "__main__":
-    typer_run(train)
+    app()
