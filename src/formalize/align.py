@@ -39,34 +39,11 @@ typer.core.rich = None
 app = Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
 
-def cosine_similarity_matrix(matrix1, matrix2):
-    """
-    Computes the cosine similarity between all pairs of rows in two matrices.
-
-    Args:
-      matrix1: A PyTorch tensor of shape (N, D).
-      matrix2: A PyTorch tensor of shape (M, D).
-
-    Returns:
-      A PyTorch tensor of shape (N, M) where each element (i, j) is the cosine
-      similarity between row i of matrix1 and row j of matrix2.
-    """
-
-    # Normalize rows to unit length
-    matrix1_normalized = F.normalize(matrix1, p=2, dim=1)
-    matrix2_normalized = F.normalize(matrix2, p=2, dim=1)
-
-    # Compute cosine similarity using matrix multiplication
-    similarity_matrix = torch.matmul(matrix1_normalized, matrix2_normalized.transpose(0, 1))
-
-    return similarity_matrix
-
-
 @dataclass
 class FormalAlignOutput(ModelOutput):
-    loss: Optional[torch.FloatTensor] = None
-    logits: torch.FloatTensor = None
-    predictions: torch.FloatTensor = None
+    loss: Optional[torch.Tensor] = None
+    logits: torch.Tensor = None
+    predictions: torch.Tensor | tuple[torch.Tensor, torch.Tensor] = None
 
 
 def load_model(
@@ -159,6 +136,37 @@ def load_model(
     return model, tokenizer
 
 
+def compute_formal_align_score(inputs, model_outputs):
+    # Last hidden state for contrastive loss
+    hidden_states = model_outputs.hidden_states[-1]  # type:ignore
+
+    # Get the index of the end of the prompt, so we can get the representation of the natural language
+    # nl_index should be the " \n" token; to get start of FL you need to add 1
+    nl_index = inputs["nl_end_idx"]
+    fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
+
+    # Create input mask to mask out the prompt & padding for certainty score computation
+    B, N, V = model_outputs.logits.shape
+    fl_mask = inputs["fl_mask"][:, 1:]
+    log_probs = torch.log_softmax(model_outputs.logits, dim=-1)[:, :-1]  # predictions of ids 1->end
+    idxs = inputs["input_ids"][:, 1:]
+    token_log_probs = torch.gather(log_probs.reshape(-1, V), 1, idxs.reshape(-1, 1)).view(B, -1)
+    fl_token_log_probs = token_log_probs * fl_mask  # zero out the ones we don't care about
+    mean_log_probs = fl_token_log_probs.sum(dim=-1) / fl_mask.sum(dim=-1)
+    certainty_score = torch.exp(mean_log_probs)
+
+    nl_state = hidden_states[torch.arange(B), nl_index]
+    fl_state = hidden_states[torch.arange(B), fl_index]
+
+    # Do cosine similarity between pairs, and compare against the labels
+    cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
+
+    # Use sigmoid instead
+    similarity_score = (cos + 1) / 2
+
+    return dict(certainty_score=certainty_score, similarity_score=similarity_score)
+
+
 class FastLanguageTrainer(SFTTrainer):
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         B, N = inputs["input_ids"].shape
@@ -169,33 +177,11 @@ class FastLanguageTrainer(SFTTrainer):
         ce_loss = ce_loss * inputs["aligned"]  # only want to count the positive examples
         ce_loss = ce_loss.sum() / inputs["aligned"].sum() if inputs["aligned"].sum() else 0.0
 
-        # Last hidden state for contrastive loss
-        hidden_states = outputs.hidden_states[-1]  # type:ignore
+        scores = compute_formal_align_score(inputs, outputs)
+        certainty_score = scores["certainty_score"]
+        similarity_score = scores["similarity_score"]
 
-        # Get the index of the end of the prompt, so we can get the representation of the natural language
-        # nl_index should be the " \n" token; to get start of FL you need to add 1
-        nl_index = inputs["nl_end_idx"]
-        fl_index = torch.sum(inputs["attention_mask"], dim=1) - 1 - 1  # -1 to zero index, then -1 to get := token
-
-        # Create input mask to mask out the prompt & padding for certainty score computation
-        B, N, V = outputs.logits.shape
-        fl_mask = inputs["fl_mask"][:, 1:]
-        log_probs = torch.log_softmax(outputs.logits, dim=-1)[:, :-1]  # predictions of ids 1->end
-        idxs = inputs["input_ids"][:, 1:]
-        token_log_probs = torch.gather(log_probs.reshape(-1, V), 1, idxs.reshape(-1, 1)).view(B, -1)
-        fl_token_log_probs = token_log_probs * fl_mask  # zero out the ones we don't care about
-        mean_log_probs = fl_token_log_probs.sum(dim=-1) / fl_mask.sum(dim=-1)
-        certainty_score = torch.exp(mean_log_probs)
-
-        nl_state = hidden_states[torch.arange(B), nl_index]
-        fl_state = hidden_states[torch.arange(B), fl_index]
-
-        # Do cosine similarity between pairs, and compare against the labels
-        cos = torch.cosine_similarity(nl_state, fl_state, dim=-1)
-
-        # Use sigmoid instead
-        similarity_score = (cos + 1) / 2
-        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].to(cos.dtype))
+        cl_loss = F.mse_loss(similarity_score, inputs["aligned"].to(similarity_score.dtype))
 
         # loss = cross entropy + contrastive loss
         loss = ce_loss + cl_loss
@@ -203,7 +189,9 @@ class FastLanguageTrainer(SFTTrainer):
         self._metrics["cl_loss"].append(cl_loss.item())
 
         new_outputs = FormalAlignOutput(
-            loss=loss, logits=outputs.logits, predictions=(certainty_score, similarity_score)
+            loss=loss,
+            logits=outputs.logits,  # type:ignore
+            predictions=(certainty_score, similarity_score),
         )
         return (loss, new_outputs) if return_outputs else loss
 
