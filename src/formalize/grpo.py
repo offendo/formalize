@@ -4,6 +4,7 @@ import re
 import torch
 import typer
 import logging
+from icecream import ic
 
 from pathlib import Path
 
@@ -20,7 +21,7 @@ typer.core.rich = None
 app = typer.Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=False)
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 def load_model(
     model_name: str | Path,
@@ -40,7 +41,7 @@ def load_model(
             config,
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
-            attn_implementation="flash_attention_2",
+            attn_implementation="sdpa",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -54,7 +55,7 @@ def load_model(
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
             )
             model = get_peft_model(model, peft_config)
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, padding_side="left")
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
         logging.info(f"Loaded model {model_name} in DEBUG mode.")
@@ -67,7 +68,7 @@ def load_model(
             torch_dtype=torch.bfloat16,
             device_map="auto",
             quantization_config=quantization_config,
-            attn_implementation="flash_attention_2",
+            # attn_implementation="flash_attention_2",
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -81,7 +82,7 @@ def load_model(
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
             )
             model = get_peft_model(model, peft_config)
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, padding_side="left")
         tokenizer.pad_token = tokenizer.eos_token
         tokenizer.pad_token_id = tokenizer.eos_token_id
         logging.info(f"Loaded model {model_name} in PRODUCTION mode.")
@@ -112,7 +113,7 @@ def load_data(dataset_name: str):
     return ds
 
 
-def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: bool = False):
+def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: bool = False, align_batch_size: int = 1):
     align_model, align_tokenizer = load_align_model(
         formal_align_model_path,
         max_length=2048,
@@ -123,6 +124,7 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
         seed=1234,
         quantize=quantize,
     )
+    align_model.eval()
     logging.info(f"Loaded alignment model from {formal_align_model_path}")
     chat_marker = align_tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer=align_tokenizer, mask_inputs=False, mlm=False)
@@ -146,21 +148,23 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
         # Now we collate it, which converts it back into dict[list], but with some extra processing
         cert_scores = []
         sim_scores = []
-        for batch in chunked(uncollated, 1):
-            model_inputs = collator(uncollated)
+        for batch in chunked(uncollated, align_batch_size):
+            model_inputs = collator(batch)
 
             # And finally convert it all over to the device
             for key, val in model_inputs.items():
+                val.requires_grad = False
                 model_inputs[key] = val.to(align_model.device)
 
             # Pass it to the model & compute scores
-            model_output = align_model(**model_inputs)
+            model_inputs['output_hidden_states'] = True
+            with torch.no_grad():
+                model_output = align_model(**model_inputs)
             scores = compute_formal_align_score(model_inputs, model_output)
 
             cert_scores.extend(scores['certainty_score'].view(-1).tolist())
             sim_scores.extend(scores['similarity_score'].view(-1).tolist())
             
-
         return [c + s for c,s in zip(cert_scores, sim_scores)]
 
     return align_reward_fn
@@ -240,11 +244,12 @@ def train(
         report_to="wandb",  # Can use Weights & Biases
         output_dir=output_dir,
         seed=seed,
+        log_completions=True,
     )
     rewards = get_reward_fns(alignment_model_path=alignment_model_path, max_thinking_length=max_thinking_length, quantize_alignment_model=quantize_alignment_model)
     trainer = GRPOTrainer(
         model=model,
-        processing_class=tokenizer,
+        # processing_class=tokenizer,
         reward_funcs=rewards,
         args=training_args,
         train_dataset=load_data(dataset),
