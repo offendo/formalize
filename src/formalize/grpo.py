@@ -103,8 +103,8 @@ def load_data(dataset_name: str):
     def apply_prompt(examples):
         prompts = [
             [
-                {"role": "system", "content": "You are an expert mathematician and fluent in reasoning in Lean 4."},
-                {"role": "user", "content": f"Translate the following natural language statement into Lean 4:\n {nl}"},
+                {"role": "system", "content": "You are an expert mathematician."},
+                {"role": "user", "content": f"Translate the following statement in natural language to Lean:\n{nl}"},
             ]
             for nl in examples["natural_language"]
         ]
@@ -113,6 +113,7 @@ def load_data(dataset_name: str):
     logging.info(f"Loaded dataset {dataset_name}")
     ds = ds.map(apply_prompt, batched=True)
     logging.info(f"Formatted data into message lists.")
+    logging.info(f"Example: {ds[0]['prompt']}")
     return ds
 
 
