@@ -21,6 +21,6 @@ python src/formalize/grpo.py \
   --learning-rate 1e-6 \
   --max-prompt 256 \
   --max-completion 256 \
-  --batch-size $BATCH_SIZE --num-generations $GENERATIONS --gradient-accumulation $GRAD_ACC \
+  --batch-size $BATCH_SIZE --num-generations $NUM_GENERATIONS --gradient-accumulation $GRAD_ACC \
   --quantize-alignment-model \
   --optimizer $OPTIMIZER --scheduler $SCHEDULER

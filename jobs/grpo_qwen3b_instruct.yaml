@@ -46,8 +46,10 @@ spec:
               value: "10"
             - name: BATCH_SIZE
               value: "8"
-            - name: GRAD_ACC
+            - name: NUM_GENERATIONS
               value: "8"
+            - name: GRAD_ACC
+              value: "2"
             - name: EVAL_STEPS
               value: "500"
             - name: GRAD_CKPT
