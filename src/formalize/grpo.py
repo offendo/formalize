@@ -164,7 +164,7 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
 
             cert_scores.extend(scores['certainty_score'].view(-1).tolist())
             sim_scores.extend(scores['similarity_score'].view(-1).tolist())
-            
+
         return [c + s for c,s in zip(cert_scores, sim_scores)]
 
     return align_reward_fn
@@ -179,6 +179,13 @@ def make_max_thinking_length_reward_fn(max_length):
         return [0.25 if ls <= max_length else 0.0 for ls in lengths]
 
     return max_thinking_length_reward_fn
+
+def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
+    completion_content = [comp[0]["content"] for comp in completions]
+    pattern = r"^<think>(.*?)</think><answer>.*?</answer>$"
+    matches = [re.match(pattern, content) for content in completion_content]
+    lengths = [len(m.group(0)) if m else 0.0 for m in matches]
+    return [0.25 if ls <= max_length else 0.0 for ls in lengths]
 
 
 def get_reward_fns(alignment_model_path: str | None = None, max_thinking_length: int = -1, quantize_alignment_model: bool = False):
@@ -200,7 +207,6 @@ def train(
     max_prompt: Annotated[int, Option(help="max input tokens", rich_help_panel="Training Config")],
     max_completion: Annotated[int, Option(help="max output tokens", rich_help_panel="Training Config")],
     lora_rank: Annotated[int, Option(help="lora rank to train (-1 for no lora)", rich_help_panel="Model Config")] = -1,
-
     seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
     alignment_model_path: Annotated[str, Option(help="name/path of alignment reward model", rich_help_panel="Training Config")] = "offendo/lean-alignment",
     max_thinking_length: Annotated[int, Option(help="max thinking length for reward", rich_help_panel="Training Config")] = -1,
@@ -230,7 +236,7 @@ def train(
         warmup_ratio=0.1,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=5,
+        logging_steps=10,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
@@ -249,11 +255,11 @@ def train(
     rewards = get_reward_fns(alignment_model_path=alignment_model_path, max_thinking_length=max_thinking_length, quantize_alignment_model=quantize_alignment_model)
     trainer = GRPOTrainer(
         model=model,
-        # processing_class=tokenizer,
         reward_funcs=rewards,
         args=training_args,
         train_dataset=load_data(dataset),
     )
+    trainer.generation_config.stop_strings = [":=", " :=", " := "]
     trainer.train()
     trainer.save_model(output_dir)
 
