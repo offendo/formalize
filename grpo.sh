@@ -17,7 +17,7 @@ python src/formalize/grpo.py \
   --alignment-model-path "offendo/lean-alignment" \
   --dataset "AI-MO/minif2f_test" \
   --output-dir "/volume/grpo_$WANDB_RUN" \
-  --epochs $EPOCHS \
+  --num-epochs $EPOCHS \
   --max-prompt 256 \
   --max-completion 256 \
   --batch-size $BATCH_SIZE --num-generations $BATCH_SIZE \
