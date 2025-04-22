@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-qwen3b-instruct
+  name: nilay-formalize-train-llama3b-instruct
 spec:
   template:
     spec:
@@ -27,13 +27,13 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run.sh"]
+          command: ["bash", "align.sh"]
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "Qwen/Qwen2.5-3B-Instruct"
+              value: "meta-llama/Llama-3.2-3B-Instruct"
             - name: WANDB_RUN
-              value: "qwen_3b_instruct"
+              value: "llama_3b_instruct"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER

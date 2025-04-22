@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-qwen7b-instruct
+  name: nilay-formalize-train-qwen3b-instruct
 spec:
   template:
     spec:
@@ -27,13 +27,13 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run.sh"]
+          command: ["bash", "align.sh"]
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "Qwen/Qwen2.5-7B-Instruct"
+              value: "Qwen/Qwen2.5-3B-Instruct"
             - name: WANDB_RUN
-              value: "qwen_7b_lora_instruct"
+              value: "qwen_3b_instruct"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
@@ -43,15 +43,15 @@ spec:
             - name: EPOCHS
               value: "2"
             - name: BATCH_SIZE
-              value: "2"
+              value: "4"
             - name: GRAD_ACC
-              value: "32"
+              value: "16"
             - name: EVAL_STEPS
               value: "500"
             - name: GRAD_CKPT
               value: ""
             - name: LORA_RANK
-              value: "256"
+              value: "-1"
             - name: NEG_RATIO
               value: "1"
             - name: ADD_SPECIAL_REPRESENTATION

@@ -23,6 +23,7 @@ app = typer.Typer(pretty_exceptions_short=False, pretty_exceptions_show_locals=F
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
 def load_model(
     model_name: str | Path,
     lora_rank: int,
@@ -87,7 +88,7 @@ def load_model(
         tokenizer.pad_token_id = tokenizer.eos_token_id
         logging.info(f"Loaded model {model_name} in PRODUCTION mode.")
 
-    tokenizer.padding_side = 'left'
+    tokenizer.padding_side = "left"
     logging.info("Using left-padding for generation model.")
     return model, tokenizer
 
@@ -98,15 +99,17 @@ def load_data(dataset_name: str):
         ds = ds.rename_column("informal_prefix", "natural_language")
 
     assert "natural_language" in ds.column_names  # type:ignore
+
     def apply_prompt(examples):
         prompts = [
             [
-                {'role': 'system', 'content': "You are an expert mathematician and fluent in reasoning in Lean 4."},
-                {'role': 'user',   'content': f"Translate the following natural language statement into Lean 4:\n {nl}"},
+                {"role": "system", "content": "You are an expert mathematician and fluent in reasoning in Lean 4."},
+                {"role": "user", "content": f"Translate the following natural language statement into Lean 4:\n {nl}"},
             ]
-            for nl in examples['natural_language']
+            for nl in examples["natural_language"]
         ]
-        return {'prompt': prompts}
+        return {"prompt": prompts}
+
     logging.info(f"Loaded dataset {dataset_name}")
     ds = ds.map(apply_prompt, batched=True)
     logging.info(f"Formatted data into message lists.")
@@ -133,7 +136,11 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
         # completions will be in message format, so a list of [{'role': ..., 'content': ...}]
         # the inner list has length equal to the number of completions asked for (?)
         completion_content = [comp[0]["content"] for comp in completions]
-        examples = {'input': natural_language, 'output': completion_content}
+
+        # Lop off everything after the :=
+        completion_content = [comp.split(":=")[0] for comp in completion_content]
+
+        examples = {"input": natural_language, "output": completion_content}
         batch = tokenize_chat(examples, chat_marker, align_tokenizer)
 
         # Convert the dict[list] into list[dict] because that's what the collator expects
@@ -142,7 +149,7 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
             for i, v in enumerate(val):
                 uncollated[i][key] = v
 
-        ex = align_tokenizer.decode(uncollated[0]['input_ids'])
+        ex = align_tokenizer.decode(uncollated[0]["input_ids"])
         logging.debug(f"Formatted and tokenized reward inputs: {ex}")
 
         # Now we collate it, which converts it back into dict[list], but with some extra processing
@@ -157,15 +164,15 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
                 model_inputs[key] = val.to(align_model.device)
 
             # Pass it to the model & compute scores
-            model_inputs['output_hidden_states'] = True
+            model_inputs["output_hidden_states"] = True
             with torch.no_grad():
                 model_output = align_model(**model_inputs)
             scores = compute_formal_align_score(model_inputs, model_output)
 
-            cert_scores.extend(scores['certainty_score'].view(-1).tolist())
-            sim_scores.extend(scores['similarity_score'].view(-1).tolist())
+            cert_scores.extend(scores["certainty_score"].view(-1).tolist())
+            sim_scores.extend(scores["similarity_score"].view(-1).tolist())
 
-        return [c + s for c,s in zip(cert_scores, sim_scores)]
+        return [c + s for c, s in zip(cert_scores, sim_scores)]
 
     return align_reward_fn
 
@@ -180,6 +187,7 @@ def make_max_thinking_length_reward_fn(max_length):
 
     return max_thinking_length_reward_fn
 
+
 def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
     completion_content = [comp[0]["content"] for comp in completions]
     pattern = r"^<think>(.*?)</think><answer>.*?</answer>$"
@@ -188,7 +196,9 @@ def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
     return [0.25 if ls <= max_length else 0.0 for ls in lengths]
 
 
-def get_reward_fns(alignment_model_path: str | None = None, max_thinking_length: int = -1, quantize_alignment_model: bool = False):
+def get_reward_fns(
+    alignment_model_path: str | None = None, max_thinking_length: int = -1, quantize_alignment_model: bool = False
+):
     fns = []
     if alignment_model_path is not None:
         fns.append(make_formal_align_reward_fn(alignment_model_path, quantize=quantize_alignment_model))
@@ -201,24 +211,29 @@ def get_reward_fns(alignment_model_path: str | None = None, max_thinking_length:
 @app.command()
 def train(
     # fmt:off
+    # Required stuff
     model_name: Annotated[str, Option(help="path to model to train", rich_help_panel="Model Config")],
     dataset: Annotated[str, Option(help="path to datasets to train", rich_help_panel="Data Config")],
     output_dir: Annotated[str, Option(help="gradient accumulation", rich_help_panel="Data Config")],
     max_prompt: Annotated[int, Option(help="max input tokens", rich_help_panel="Training Config")],
     max_completion: Annotated[int, Option(help="max output tokens", rich_help_panel="Training Config")],
+    # Model stuff
     lora_rank: Annotated[int, Option(help="lora rank to train (-1 for no lora)", rich_help_panel="Model Config")] = -1,
-    seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
-    alignment_model_path: Annotated[str, Option(help="name/path of alignment reward model", rich_help_panel="Training Config")] = "offendo/lean-alignment",
-    max_thinking_length: Annotated[int, Option(help="max thinking length for reward", rich_help_panel="Training Config")] = -1,
+    # Reward stuff
+    alignment_model_path: Annotated[str, Option(help="name/path of alignment reward model", rich_help_panel="Reward Config")] = "offendo/lean-alignment",
+    max_thinking_length: Annotated[int, Option(help="max thinking length for reward", rich_help_panel="Reward Config")] = -1,
+    quantize_alignment_model: Annotated[bool, Option("--quantize-alignment-model", help="quantize alignment model", rich_help_panel="Reward Config")] = False,
+    # Training stuff
+    num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 5,
+    batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
     learning_rate: Annotated[float, Option(help="learning rate", rich_help_panel="Training Config")] = 5e-5,
     scheduler: Annotated[str, Option(help="learning rate scheduler", rich_help_panel="Training Config")] = "cosine",
     optimizer: Annotated[str, Option(help="optimizer", rich_help_panel="Training Config")] = "paged_adamw_8bit",
     num_generations: Annotated[int, Option(help="number of GRPO generations", rich_help_panel="Training Config")] = 5,
-    num_epochs: Annotated[int, Option(help="number of training epochs", rich_help_panel="Training Config")] = 5,
-    batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
+    seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
+    # Debugging
     debug: Annotated[bool, Option("--debug", help="enable debug mode", rich_help_panel="Training Config")] = False,
-    quantize_alignment_model: Annotated[bool, Option("--quantize-alignment-model", help="quantize alignment model", rich_help_panel="Training Config")] = False,
     # fmt:on
 ):
     model, tokenizer = load_model(
@@ -252,7 +267,11 @@ def train(
         seed=seed,
         log_completions=True,
     )
-    rewards = get_reward_fns(alignment_model_path=alignment_model_path, max_thinking_length=max_thinking_length, quantize_alignment_model=quantize_alignment_model)
+    rewards = get_reward_fns(
+        alignment_model_path=alignment_model_path,
+        max_thinking_length=max_thinking_length,
+        quantize_alignment_model=quantize_alignment_model,
+    )
     trainer = GRPOTrainer(
         model=model,
         reward_funcs=rewards,

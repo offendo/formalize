@@ -22,4 +22,5 @@ python src/formalize/align.py train \
     --batch-size $BATCH_SIZE --gradient-accumulation $GRAD_ACC \
     $GRAD_CKPT \
     $ADD_SPECIAL_REPRESENTATION \
-    --lora-rank $LORA_RANK --eval-steps $EVAL_STEPS \
+    --lora-rank $LORA_RANK \
+    --eval-steps $EVAL_STEPS \

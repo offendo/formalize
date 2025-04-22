@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-llama8b-instruct
+  name: nilay-formalize-train-qwen3b-instruct
 spec:
   template:
     spec:
@@ -27,13 +27,13 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run.sh"]
+          command: ["bash", "grpo.sh"]
           workingDir: /app/formalize
           env:
             - name: MODEL_NAME
-              value: "meta-llama/Llama-3.1-8B-Instruct"
+              value: "offendo/lean-alignment"
             - name: WANDB_RUN
-              value: "llama_8b_lora_instruct"
+              value: "bootstrap_from_lean_alignment"
             - name: LR
               value: "2e-5"
             - name: OPTIMIZER
@@ -41,21 +41,17 @@ spec:
             - name: SCHEDULER
               value: "cosine"
             - name: EPOCHS
-              value: "2"
+              value: "10"
             - name: BATCH_SIZE
-              value: "2"
+              value: "4"
             - name: GRAD_ACC
-              value: "8"
+              value: "16"
             - name: EVAL_STEPS
               value: "500"
             - name: GRAD_CKPT
               value: ""
             - name: LORA_RANK
-              value: "256"
-            - name: NEG_RATIO
-              value: "1"
-            - name: ADD_SPECIAL_REPRESENTATION
-              value: ""
+              value: "-1"
           volumeMounts:
             - name: git-repo
               mountPath: /app
