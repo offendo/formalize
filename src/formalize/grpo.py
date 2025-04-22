@@ -4,6 +4,7 @@ import re
 import torch
 import typer
 import logging
+from formalize.custom_grpo_trainer import CustomGRPOTrainer
 from icecream import ic
 
 from pathlib import Path
@@ -273,7 +274,7 @@ def train(
         max_thinking_length=max_thinking_length,
         quantize_alignment_model=quantize_alignment_model,
     )
-    trainer = GRPOTrainer(
+    trainer = CustomGRPOTrainer(
         model=model,
         reward_funcs=rewards,
         args=training_args,
