@@ -35,17 +35,17 @@ spec:
             - name: WANDB_RUN
               value: "bootstrap_from_lean_alignment"
             - name: LR
-              value: "2e-5"
+              value: "5e-6"
             - name: OPTIMIZER
               value: "paged_adamw_8bit"
             - name: SCHEDULER
-              value: "cosine"
+              value: "constant"
             - name: EPOCHS
               value: "10"
             - name: BATCH_SIZE
-              value: "4"
+              value: "8"
             - name: GRAD_ACC
-              value: "16"
+              value: "8"
             - name: EVAL_STEPS
               value: "500"
             - name: GRAD_CKPT

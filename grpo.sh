@@ -18,8 +18,9 @@ python src/formalize/grpo.py \
   --dataset "AI-MO/minif2f_test" \
   --output-dir "/volume/grpo_$WANDB_RUN" \
   --num-epochs $EPOCHS \
+  --learning-rate 1e-6 \
   --max-prompt 256 \
   --max-completion 256 \
-  --batch-size $BATCH_SIZE --num-generations $BATCH_SIZE \
+  --batch-size $BATCH_SIZE --num-generations $GENERATIONS --gradient-accumulation $GRAD_ACC \
   --quantize-alignment-model \
   --optimizer $OPTIMIZER --scheduler $SCHEDULER

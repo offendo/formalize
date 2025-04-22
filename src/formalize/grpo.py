@@ -232,7 +232,7 @@ def train(
     learning_rate: Annotated[float, Option(help="learning rate", rich_help_panel="Training Config")] = 5e-5,
     scheduler: Annotated[str, Option(help="learning rate scheduler", rich_help_panel="Training Config")] = "cosine",
     optimizer: Annotated[str, Option(help="optimizer", rich_help_panel="Training Config")] = "paged_adamw_8bit",
-    num_generations: Annotated[int, Option(help="number of GRPO generations", rich_help_panel="Training Config")] = 5,
+    num_generations: Annotated[int, Option(help="number of GRPO generations", rich_help_panel="Training Config")] = 4,
     seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
     gradient_accumulation: Annotated[int, Option(help="gradient accumulation", rich_help_panel="Training Config")] = 1,
     # Debugging
