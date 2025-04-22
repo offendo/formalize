@@ -4,7 +4,6 @@ import re
 import torch
 import typer
 import logging
-from formalize.custom_grpo_trainer import CustomGRPOTrainer
 from icecream import ic
 
 from pathlib import Path
@@ -15,6 +14,7 @@ from datasets import load_dataset, Dataset, DatasetDict
 from trl import GRPOConfig, GRPOTrainer
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import PeftModel, LoraConfig, TaskType, get_peft_model
+from custom_grpo_trainer import CustomGRPOTrainer
 from align import CustomCollator, compute_formal_align_score, load_model as load_align_model, tokenize_chat
 from more_itertools import chunked
 
@@ -140,7 +140,7 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
         completion_content = [comp[0]["content"] for comp in completions]
 
         # Lop off everything after the :=
-        completion_content = [comp.split(":=")[0] for comp in completion_content]
+        completion_content = [comp.split(":=")[0].strip() for comp in completion_content]
 
         examples = {"input": natural_language, "output": completion_content}
         batch = tokenize_chat(examples, chat_marker, align_tokenizer)
@@ -192,9 +192,10 @@ def make_max_thinking_length_reward_fn(max_length):
 
 def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
     completion_content = [comp[0]["content"] for comp in completions]
-    pattern = r"^theorem.*:=.*$"
-    matches = [re.match(pattern, content) for content in completion_content]
-    return [1 if match else -1 for match in matches]
+    completion_content = [comp.split(":=")[0].strip() for comp in completion_content]
+    pattern = r"^theorem.*:="
+    matches = [re.match(pattern, content, re.DOTALL) for content in completion_content]
+    return [0.0 if match else -20.0 for match in matches]
 
 
 def get_reward_fns(
