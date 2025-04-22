@@ -192,10 +192,9 @@ def make_max_thinking_length_reward_fn(max_length):
 
 def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
     completion_content = [comp[0]["content"] for comp in completions]
-    pattern = r"^<think>(.*?)</think><answer>.*?</answer>$"
+    pattern = r"^theorem.*:=.*$"
     matches = [re.match(pattern, content) for content in completion_content]
-    lengths = [len(m.group(0)) if m else 0.0 for m in matches]
-    return [0.25 if ls <= max_length else 0.0 for ls in lengths]
+    return [1 if match else -1 for match in matches]
 
 
 def get_reward_fns(
@@ -204,6 +203,7 @@ def get_reward_fns(
     fns = []
     if alignment_model_path is not None:
         fns.append(make_formal_align_reward_fn(alignment_model_path, quantize=quantize_alignment_model))
+        fns.append(theorem_format_reward_fn)
     if max_thinking_length > 0:
         fns.append(make_max_thinking_length_reward_fn(max_thinking_length))
 
