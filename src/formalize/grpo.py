@@ -140,7 +140,7 @@ def make_formal_align_reward_fn(formal_align_model_path: str | Path, quantize: b
         completion_content = [comp[0]["content"] for comp in completions]
 
         # Lop off everything after the :=
-        completion_content = [comp.split(":=")[0].strip() for comp in completion_content]
+        completion_content = ["".join(re.split(r"(:=)", comp)[:2]).strip() for comp in completion_content]
 
         examples = {"input": natural_language, "output": completion_content}
         batch = tokenize_chat(examples, chat_marker, align_tokenizer)
@@ -192,8 +192,8 @@ def make_max_thinking_length_reward_fn(max_length):
 
 def theorem_format_reward_fn(completions: list[list[dict]], **kwargs):
     completion_content = [comp[0]["content"] for comp in completions]
-    completion_content = [comp.split(":=")[0].strip() for comp in completion_content]
-    pattern = r"^theorem.*:="
+    completion_content = ["".join(re.split(r"(:=)", comp)[:2]).strip() for comp in completion_content]
+    pattern = r"^theorem.*:=$"
     matches = [re.match(pattern, content, re.DOTALL) for content in completion_content]
     return [0.0 if match else -20.0 for match in matches]
 
@@ -246,15 +246,16 @@ def train(
     )
 
     training_args = GRPOConfig(
-        use_vllm=False,  # use vLLM for fast inference!
+        use_vllm=False,  # use vLLM for fast inference! NP: this breaks everything if True; need to debug eventually
         learning_rate=learning_rate,
+        beta=0.015,  # slightly higher KL divergence penalty
         adam_beta1=0.9,
         adam_beta2=0.99,
         weight_decay=0.1,
         warmup_ratio=0.1,
         lr_scheduler_type=scheduler,
         optim=optimizer,
-        logging_steps=10,
+        logging_steps=5,
         bf16=torch.cuda.is_bf16_supported(),
         fp16=not torch.cuda.is_bf16_supported(),
         per_device_train_batch_size=batch_size,
