@@ -98,6 +98,8 @@ def load_data(dataset_name: str):
     ds = load_dataset(dataset_name, split="train")
     if "minif2f" in dataset_name.lower():
         ds = ds.rename_column("informal_prefix", "natural_language")
+    elif "math-atlas" in dataset_name.lower():
+        ds = ds.rename_column("text", "natural_language")
 
     assert "natural_language" in ds.column_names  # type:ignore
 

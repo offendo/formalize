@@ -32,8 +32,10 @@ spec:
           env:
             - name: MODEL_NAME
               value: "offendo/lean-alignment"
+            - name: DATASET
+              value: "offendo/math-atlas-titled-theorems"
             - name: WANDB_RUN
-              value: "bootstrap_from_lean_alignment"
+              value: "bootstrap_from_lean_alignment_math_atlas"
             - name: LR
               value: "5e-6"
             - name: OPTIMIZER

@@ -15,7 +15,7 @@ export SEED=1234
 python src/formalize/grpo.py \
   --model-name "offendo/lean-alignment" \
   --alignment-model-path "offendo/lean-alignment" \
-  --dataset "AI-MO/minif2f_test" \
+  --dataset $DATASET \
   --output-dir "/volume/grpo_$WANDB_RUN" \
   --num-epochs $EPOCHS \
   --learning-rate 1e-6 \
