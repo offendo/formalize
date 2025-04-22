@@ -22,5 +22,4 @@ python src/formalize/grpo.py \
   --max-completion 256 \
   --batch-size $BATCH_SIZE --num-generations $BATCH_SIZE \
   --quantize-alignment-model \
-  --optimizer $OPTIMIZER --scheduler $SCHEDULER \
-  --eval-steps $EVAL_STEPS
+  --optimizer $OPTIMIZER --scheduler $SCHEDULER
