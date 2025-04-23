@@ -136,6 +136,28 @@ def load_model(
     return model, tokenizer
 
 
+def score_example(nl: str, fl: str, model, tokenizer):
+    collator = CustomCollator(tokenizer=tokenizer, mask_inputs=False, mlm=False)
+    if "Qwen" in tokenizer.name_or_path:
+        chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
+    elif "Llama" in tokenizer.name_or_path:
+        chat_marker = tokenizer("<|start_header_id|>assistant", add_special_tokens=False).input_ids
+    else:
+        raise NotImplementedError(f"tokenizer type {tokenizer.name_or_path} not supported for chat models yet")
+    example = {"input": [nl], "output": [fl]}
+    prompt = tokenize_chat(example, chat_marker, tokenizer)
+    batch = collator([{key: val[0] for key, val in prompt.items()}])
+    for key, val in batch.items():
+        if isinstance(val, torch.Tensor):
+            batch[key] = val.to(model.device)
+
+    batch["output_hidden_states"] = True
+    model_out = model(**batch)
+    scores = compute_formal_align_score(batch, model_out)
+    scores["mean"] = (scores["certainty_score"] + scores["similarity_score"]) / 2
+    return tokenizer.batch_decode(prompt["input_ids"]), scores
+
+
 def compute_formal_align_score(inputs: dict, model_outputs: CausalLMOutput):
     # Last hidden state for similarity computation
     assert model_outputs.hidden_states is not None
