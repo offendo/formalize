@@ -3,7 +3,7 @@
 huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 wandb login $(cat /etc/api-tokens/wandb-token)
 
-pip install -U torchao more_itertools trl==0.15.2 icecream vllm
+pip install -U torchao more_itertools icecream 
 if [[ $OPTIMIZER =~ .*lomo ]]; then
   pip install lomo-optim
 fi;
