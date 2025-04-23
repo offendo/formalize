@@ -27,12 +27,7 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: [
-            "python", "run_herald.py", 
-            "--model", "FrenzyMath/Herald_translator", 
-            "--dataset", "offendo/math-atlas-titled-theorems",
-            "--output_path", "/volume/math_atlas_herald_predictions.json"
-          ]
+          command: ["bash", "run_herald.sh"]
           workingDir: /app/formalize
           volumeMounts:
             - name: git-repo
@@ -43,13 +38,13 @@ spec:
               mountPath: /etc/api-tokens
           resources:
             limits:
-              memory: 32Gi
+              memory: 64Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "2"
             requests:
-              memory: 32Gi
+              memory: 64Gi
               cpu: 2
-              nvidia.com/gpu: "4"
+              nvidia.com/gpu: "2"
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0
