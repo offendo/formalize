@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
+FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
 
 # Install Elan/Lean
 RUN apt update -y \
@@ -8,7 +8,10 @@ RUN apt update -y \
 WORKDIR /app
 ENV PIP_NO_CACHE_DIR=1
 COPY README.md pyproject.toml requirements.lock requirements-dev.lock .
-RUN pip install uv && uv pip install --system -U typer torch datasets pandas scikit-learn transformers openai trl==0.15.2 peft vllm unsloth==2025.2.14 unsloth_zoo==2025.2.7 wandb msgspec
+RUN pip install uv && \
+  uv pip install --system -U typer torch datasets pandas scikit-learn transformers openai trl==0.15.2 peft vllm unsloth==2025.2.14 unsloth_zoo==2025.2.7 wandb msgspec && \
+  pip install -U vllm  && \
+  pip install -U flashinfer-python -i https://flashinfer.ai/whl/cu126/torch2.6
 COPY src src/
 
 CMD ["python", "src/formalize/align.py", "--help"]

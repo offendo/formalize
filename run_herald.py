@@ -5,6 +5,7 @@ import torch
 from more_itertools import chunked
 from datasets import load_dataset
 from vllm import LLM, SamplingParams
+from tqdm import tqdm
 
 
 if not os.path.exists(os.getcwd() + "/herald_translator"):
@@ -57,13 +58,9 @@ if __name__ == "__main__":
     ds = ds.map(lambda x: split_off_name(x["text"]), batched=False)
     ds = ds.filter(lambda ex: ex["id"] != None)
 
-    all_outputs = []
-    for batch in chunked(ds, args.batch_size):
-        batch = [dict(id=ex["id"], informal_statement=ex["informal_statement"]) for ex in batch]
-        out = translator.batch_generate(
-            batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens)
-        )
-        all_outputs.extend([ex[0] for ex in out])
+    batch = [dict(id=ex["id"], informal_statement=ex["informal_statement"]) for ex in ds]
+    out = translator.batch_generate( batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens))
+    all_outputs = [ex[0] for ex in out]
 
     df = pd.DataFrame({"text": ds["text"], "name": ds["id"], "formal": all_outputs})
     df.to_json(args.output_path)
