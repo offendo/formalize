@@ -32,7 +32,7 @@ if __name__ == "__main__":
     llm = LLM(
         "FrenzyMath/Herald_translator",
         dtype=torch.bfloat16,
-        tensor_parallel_size=2,
+        tensor_parallel_size=torch.cuda.device_count(),
         task="generate",
         trust_remote_code=True,
     )
