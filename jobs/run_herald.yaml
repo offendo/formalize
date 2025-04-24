@@ -29,13 +29,6 @@ spec:
           image: ghcr.io/offendo/formalize:latest
           command: ["bash", "run_herald.sh"]
           workingDir: /app/formalize
-          env:
-            - name: NCCL_DEBUG
-              value: INFO
-            - name: VLLM_WORKER_MULTIPROC_METHOD
-              value: spawn
-            - name: VLLM_ATTENTION_BACKEND
-              value: XFORMERS
           volumeMounts:
             - name: git-repo
               mountPath: /app

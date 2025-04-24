@@ -1,5 +1,7 @@
 #!/bin/bash
 
+huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
+
 pip install -U vllm torch
 python run_herald.py \
   --model FrenzyMath/Herald_translator \
