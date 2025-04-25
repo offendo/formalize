@@ -1,7 +1,6 @@
 huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 wandb login $(cat /etc/api-tokens/wandb-token)
 
-pip install torchao
 if [[ $OPTIMIZER =~ .*lomo ]]; then
   pip install lomo-optim
 fi;
