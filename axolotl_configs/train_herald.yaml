@@ -32,6 +32,25 @@ lr_scheduler: cosine
 optimizer: adamw_torch_4bit
 output_dir: /volume/herald_iteration_0
 
+## Lora
+adapter: lora
+lora_model_dir: /volume/herald_iteration_0
+
+# LoRA hyperparameters
+# For more details about the following options, see:
+# https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2
+lora_r: 256
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - v_proj
+  - k_proj
+  - o_proj
+  - gate_proj
+  - down_proj
+  - up_proj
+
 ## Performance
 bf16: true
 flash_attention: true
