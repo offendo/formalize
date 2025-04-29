@@ -52,7 +52,7 @@ lora_target_modules:
 
 ## Performance
 bf16: true
-flash_attention: true
+flash_attention: false
 gradient_checkpointing: true
 
 ## Logging and saving
