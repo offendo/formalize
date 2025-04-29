@@ -38,7 +38,7 @@ adapter: lora
 # LoRA hyperparameters
 # For more details about the following options, see:
 # https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2
-lora_r: 256
+lora_r: 32
 lora_alpha: 16
 lora_dropout: 0.05
 lora_target_modules:
