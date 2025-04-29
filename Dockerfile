@@ -8,9 +8,9 @@ RUN apt update -y \
 # Install Python stuff
 WORKDIR /app
 ENV PIP_NO_CACHE_DIR=1
-COPY README.md pyproject.toml requirements.lock requirements-dev.lock .
-RUN pip install typer more_itertools icecream torchao datasets pandas scikit-learn \
-                             transformers trl peft \
-                             wandb msgspec flash-attn deepspeed axolotl[flash-attn,deepspeed]
+# COPY README.md pyproject.toml requirements.lock requirements-dev.lock .
+RUN pip install uv && \
+    uv pip install --break-system-packages --system typer more_itertools icecream torchao datasets pandas transformers peft wandb msgspec
+RUN uv pip install --break-system-packages --system --no-build-isolation axolotl flash-attn deepspeed
 
 COPY src src/
