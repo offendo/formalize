@@ -22,10 +22,10 @@ liger_fused_linear_cross_entropy: true
 # Training settings
 # =================
 ## Training
-micro_batch_size: 2
+micro_batch_size: 4
 auto_find_batch_size: true
-gradient_accumulation_steps: 8
-num_epochs: 2
+gradient_accumulation_steps: 4
+num_epochs: 3
 learning_rate: 0.00002
 warmup_ratio: 0.05
 lr_scheduler: cosine

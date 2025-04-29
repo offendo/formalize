@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+# FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+FROM nvcr.io/nvidia/pytorch:25.03-py3
 
 # Install Elan/Lean
 RUN apt update -y \
@@ -8,11 +9,8 @@ RUN apt update -y \
 WORKDIR /app
 ENV PIP_NO_CACHE_DIR=1
 COPY README.md pyproject.toml requirements.lock requirements-dev.lock .
-RUN pip install uv && \
-  conda install -y nvidia/label/cuda-12.4.0::cuda-toolkit && \
-  uv pip install --system -U typer more_itertools icecream torchao torch==2.5.1 datasets pandas scikit-learn \
-                             transformers openai trl==0.15.2 peft vllm \
-                             unsloth==2025.2.14 unsloth_zoo==2025.2.7 wandb msgspec "axolotl[flash-attn,deepspeed]"
-COPY src src/
+RUN pip install typer more_itertools icecream torchao datasets pandas scikit-learn \
+                             transformers trl peft \
+                             wandb msgspec flash-attn deepspeed axolotl[flash-attn,deepspeed]
 
-CMD ["python", "src/formalize/align.py", "--help"]
+COPY src src/
