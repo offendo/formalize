@@ -2,8 +2,9 @@ import os
 import sys
 import pandas as pd
 import torch
+from pathlib import Path
 from more_itertools import chunked
-from datasets import load_dataset
+from datasets import load_dataset, load_from_disk, Dataset
 from vllm import LLM, SamplingParams
 from tqdm import tqdm
 
@@ -14,6 +15,21 @@ if not os.path.exists(os.getcwd() + "/herald_translator"):
 sys.path.append(os.getcwd() + "/herald_translator")
 from worker.translator import Translator
 from argparse import ArgumentParser
+
+
+def format_example(example: dict):
+    name = example["name"]
+    nl = example["informal_statement"]
+    fl = example["formal_statement"]
+    system = "You are an expert at Lean 4 and Mathematics."
+    instruction = f"Please translate the natural language statement to Lean4 code with the header\n**Name**\n{name}\n**Informal statement**\n{nl}\n"
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": instruction},
+        {"role": "assistant", "content": fl},
+    ]
+    return {"conversation": messages}
+
 
 if __name__ == "__main__":
 
@@ -29,9 +45,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    translator = Translator("FrenzyMath/Herald_translator", gpus=torch.cuda.device_count())
+    if Path(args.output_path).exists():
+        raise ValueError(f"Output path {args.output_path} already exists. Need a new directory.")
+
+    translator = Translator(args.model, gpus=torch.cuda.device_count())
     llm = LLM(
-        "FrenzyMath/Herald_translator",
+        args.model,
         dtype=torch.bfloat16,
         tensor_parallel_size=torch.cuda.device_count(),
         task="generate",
@@ -39,7 +58,10 @@ if __name__ == "__main__":
     )
     translator.model = llm
 
-    ds = load_dataset("offendo/math-atlas-titled-theorems", split="train")
+    if Path(args.dataset).exists():
+        ds = load_from_disk(args.dataset)
+    else:
+        ds = load_dataset(args.dataset, split="train")
     if args.num_samples:
         ds = ds.take(args.num_samples)
 
@@ -59,8 +81,25 @@ if __name__ == "__main__":
     ds = ds.filter(lambda ex: ex["id"] != None)
 
     batch = [dict(id=ex["id"], informal_statement=ex["informal_statement"]) for ex in ds]
-    out = translator.batch_generate( batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens))
+    out = translator.batch_generate(
+        batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens)
+    )
     all_outputs = [ex[0] for ex in out]
 
-    df = pd.DataFrame({"text": ds["text"], "name": ds["id"], "formal": all_outputs})
-    df.to_json(args.output_path)
+    # Create a new dataset with the new outputs
+    new_ds = Dataset.from_list(
+        [
+            dict(
+                informal_statement=ex["informal_statement"],
+                formal_satement=all_outputs[idx],
+                name=ex["name"],
+            )
+            for idx, ex in enumerate(ds)
+        ]
+    )
+
+    # Add the `conversation` key
+    new_ds = new_ds.map(format_example, batched=False)
+
+    # Save to disk
+    new_ds.save_to_disk(args.output_path)
