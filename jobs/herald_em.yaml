@@ -27,7 +27,7 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run_axolotl.sh"]
+          command: ["bash", "run_em.sh"]
           workingDir: /app/formalize
           env:
             - name: CONFIG

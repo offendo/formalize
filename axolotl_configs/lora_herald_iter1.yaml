@@ -1,4 +1,4 @@
-base_model: FrenzyMath/Herald_translator
+base_model: /volume/herald_iteration_0/merged
 
 # Performance optimizations
 # =========================
@@ -25,12 +25,22 @@ liger_fused_linear_cross_entropy: true
 micro_batch_size: 4
 auto_find_batch_size: true
 gradient_accumulation_steps: 4
-num_epochs: 3
+# num_epochs: 1
+max_steps: 500
 learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
 optimizer: adamw_torch_4bit
 output_dir: /volume/herald_iteration_1
+
+## Logging and saving
+logging_steps: 10
+eval_strategy: "no" # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
+save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
+save_steps: 250 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
+save_total_limit: 3 # Checkpoints saved at a time
+wandb_project: herald-em-autoformalization # Your wandb project name
+wandb_name: herald_iteration_1 # Set the name of your wandb run
 
 ## Lora
 adapter: lora
@@ -54,15 +64,6 @@ lora_target_modules:
 bf16: true
 flash_attention: false
 gradient_checkpointing: true
-
-## Logging and saving
-logging_steps: 10
-eval_strategy: "no" # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
-save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
-save_steps: 500 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
-save_total_limit: 3 # Checkpoints saved at a time
-wandb_project: herald-em-autoformalization # Your wandb project name
-wandb_name: herald_iteration_1 # Set the name of your wandb run
 
 # Dataset
 # =======
