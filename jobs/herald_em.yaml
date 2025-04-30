@@ -41,13 +41,15 @@ spec:
               mountPath: /etc/api-tokens
           resources:
             limits:
-              memory: 64Gi
+              memory: 128Gi
               cpu: 4
               nvidia.com/gpu: "2"
+              ephemeral-storage: 100Gi
             requests:
-              memory: 64Gi
+              memory: 128Gi
               cpu: 4
               nvidia.com/gpu: "2"
+              ephemeral-storage: 100Gi
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

@@ -3,11 +3,11 @@
 huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 wandb login $(cat /etc/api-tokens/wandb-token)
 
+# Install xformers
+pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu126
+
 axolotl fetch deepspeed_configs
 axolotl train $CONFIG
 
-# merge the lora weights
-axolotl merge-lora $CONFIG
-
-# now use the model to create a new dataset for the next iteration
-
+# # merge the lora weights
+# axolotl merge-lora $CONFIG

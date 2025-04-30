@@ -1,4 +1,4 @@
-base_model: FrenzyMath/Herald_translator
+base_model: "FrenzyMath/Herald_translator"
 
 # Performance optimizations
 # =========================
@@ -68,7 +68,7 @@ gradient_checkpointing: true
 # =======
 sequence_len: 2048
 dataset_prepared_path: dataset
-dataset_processes: 2
+dataset_processes: 1
 datasets:
   - path: /volume/math_atlas_herald_iteration_0_formatted/
     type: chat_template

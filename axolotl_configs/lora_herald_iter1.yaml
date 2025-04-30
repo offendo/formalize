@@ -62,13 +62,13 @@ lora_target_modules:
 ## Performance
 bf16: true
 flash_attention: false
-gradient_checkpointing: true
+gradient_checkpointing: false
 
 # Dataset
 # =======
 sequence_len: 2048
 dataset_prepared_path: dataset
-dataset_processes: 2
+dataset_processes: 1
 datasets:
   - path: /volume/math_atlas_herald_iteration_1_formatted/
     type: chat_template
