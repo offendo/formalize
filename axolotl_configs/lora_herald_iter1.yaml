@@ -25,8 +25,7 @@ liger_fused_linear_cross_entropy: true
 micro_batch_size: 4
 auto_find_batch_size: true
 gradient_accumulation_steps: 4
-# num_epochs: 1
-max_steps: 500
+num_epochs: 2
 learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine

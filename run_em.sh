@@ -5,4 +5,9 @@ wandb login $(cat /etc/api-tokens/wandb-token)
 
 axolotl fetch deepspeed_configs
 axolotl train $CONFIG
+
+# merge the lora weights
 axolotl merge-lora $CONFIG
+
+# now use the model to create a new dataset for the next iteration
+
