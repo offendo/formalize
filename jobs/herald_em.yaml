@@ -13,7 +13,7 @@ spec:
                   - key: nvidia.com/gpu.product
                     operator: In
                     values:
-                      - NVIDIA-GeForce-RTX-3090
+                      # - NVIDIA-GeForce-RTX-3090
                       - NVIDIA-GeForce-RTX-4090
                       - NVIDIA-A100-SXM4-80GB
                       - NVIDIA-A100-80GB-PCIe
@@ -39,6 +39,8 @@ spec:
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
+            - name: dshm
+              mountPath: /dev/shm
           resources:
             limits:
               memory: 128Gi
@@ -99,5 +101,8 @@ spec:
           secret:
             defaultMode: 0400
             secretName: nilay-api-tokens
+        - name: dshm
+          emptyDir:
+            medium: Memory
       restartPolicy: Never
   backoffLimit: 0

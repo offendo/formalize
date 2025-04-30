@@ -29,7 +29,7 @@ num_epochs: 2
 learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
-optimizer: adamw_torch_4bit
+optimizer: paged_adamw_8bit
 output_dir: /volume/herald_iteration_1
 
 ## Logging and saving
