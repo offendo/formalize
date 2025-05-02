@@ -106,7 +106,7 @@ if __name__ == "__main__":
             dict(
                 informal_statement=ex["informal_statement"],
                 formal_satement=all_outputs[idx],
-                name=ex["name"],
+                informal_name=ex["name"],
             )
             for idx, ex in enumerate(ds)
         ]

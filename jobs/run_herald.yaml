@@ -35,9 +35,9 @@ spec:
             - name: DATASET
               value: offendo/math-atlas-titled-theorems
             - name: OUTPUT_PATH
-              value: /volume/math_atlas_herald_iteration_1_formatted/
+              value: /volume/math_atlas_herald_iteration_1_debug
             - name: NUM_SAMPLES
-              value: -1
+              value: "100"
           volumeMounts:
             - name: git-repo
               mountPath: /app
