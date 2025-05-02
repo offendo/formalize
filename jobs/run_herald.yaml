@@ -31,11 +31,13 @@ spec:
           workingDir: /app/formalize
           env:
             - name: MODEL
-              value: /volume/herald_iteration_0
+              value: /volume/herald_iteration_0/merged
             - name: DATASET
               value: offendo/math-atlas-titled-theorems
             - name: OUTPUT_PATH
               value: /volume/math_atlas_herald_iteration_1_formatted/
+            - name: NUM_SAMPLES
+              value: -1
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -43,6 +45,8 @@ spec:
               mountPath: /volume
             - name: api-tokens
               mountPath: /etc/api-tokens
+            - name: dshm
+              mountPath: /dev/shm
           resources:
             limits:
               memory: 64Gi
@@ -101,5 +105,8 @@ spec:
           secret:
             defaultMode: 0400
             secretName: nilay-api-tokens
+        - name: dshm
+          emptyDir:
+            medium: Memory
       restartPolicy: Never
   backoffLimit: 0

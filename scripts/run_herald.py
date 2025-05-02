@@ -52,10 +52,10 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
-    parser.add_argument("--num_samples", type=int, default=None)
+    parser.add_argument("--num_samples", type=int, default=-1)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--temperature", type=float, default=0.0)
-    parser.add_argument("--max_tokens", type=int, default=1024)
+    parser.add_argument("--max_tokens", type=int, default=2048)
 
     args = parser.parse_args()
 
@@ -76,7 +76,7 @@ if __name__ == "__main__":
         ds = load_from_disk(args.dataset)
     else:
         ds = load_dataset(args.dataset, split="train")
-    if args.num_samples:
+    if args.num_samples > 0:
         ds = ds.take(args.num_samples)
 
     def split_off_name(text):

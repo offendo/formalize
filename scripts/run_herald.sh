@@ -6,4 +6,5 @@ uv pip install --system --no-build-isolation vllm
 python scripts/run_herald.py \
   --model $MODEL \
   --dataset $DATASET \
-  --output_path $OUTPUT_PATH
+  --output_path $OUTPUT_PATH \
+  --num_samples $NUM_SAMPLES 
