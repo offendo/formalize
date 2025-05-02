@@ -3,7 +3,7 @@
 huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 
 pip install -U vllm torch flashinfer
-python run_herald.py \
+python scripts/run_herald.py \
   --model $MODEL \
   --dataset $DATASET \
   --output_path $OUTPUT_PATH

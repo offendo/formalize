@@ -2,6 +2,7 @@ import os
 import sys
 import pandas as pd
 import torch
+import re
 from pathlib import Path
 from more_itertools import chunked
 from datasets import load_dataset, load_from_disk, Dataset
@@ -18,7 +19,7 @@ from argparse import ArgumentParser
 
 
 def format_example(example: dict):
-    name = example["name"]
+    name = example["informal_name"]
     nl = example["informal_statement"]
     fl = example["formal_statement"]
     system = "You are an expert at Lean 4 and Mathematics."
@@ -30,6 +31,19 @@ def format_example(example: dict):
     ]
     return {"conversation": messages}
 
+def format_reverse_example(example: dict):
+    name = example["informal_name"]
+    nl = example["informal_statement"]
+    # Need to get the formal language but without the comment
+    fl = ''.join(re.split(r"\n(theorem|lemma)", example["formal_statement"], re.MULTILINE)[-2:])
+    system = "You are an expert at Lean 4 and Mathematics."
+    instruction = f"Please translate the formal language statement in Lean 4 into natural language\n**Formal statement**\n{fl}\n"
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": instruction},
+        {"role": "assistant", "content": nl},
+    ]
+    return {"conversation": messages}
 
 if __name__ == "__main__":
 
@@ -75,12 +89,12 @@ if __name__ == "__main__":
         else:
             name = None
             theorem = None
-        return {"id": name, "informal_statement": theorem}
+        return {"informal_name": name, "informal_statement": theorem}
 
-    ds = ds.map(lambda x: split_off_name(x["text"]), batched=False)
-    ds = ds.filter(lambda ex: ex["id"] != None)
+    ds = ds.map(lambda x: split_off_name(x["informal_statement"]), batched=False)
+    ds = ds.filter(lambda ex: ex["informal_name"] != None)
 
-    batch = [dict(id=ex["id"], informal_statement=ex["informal_statement"]) for ex in ds]
+    batch = [dict(id=ex["informal_name"], informal_statement=ex["informal_statement"]) for ex in ds]
     out = translator.batch_generate(
         batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens)
     )

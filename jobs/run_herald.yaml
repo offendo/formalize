@@ -27,7 +27,7 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run_herald.sh"]
+          command: ["bash", "scripts/run_herald.sh"]
           workingDir: /app/formalize
           env:
             - name: MODEL
