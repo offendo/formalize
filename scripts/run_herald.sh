@@ -2,7 +2,7 @@
 
 huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 
-pip install -U vllm
+pip install vllm
 python scripts/run_herald.py \
   --model $MODEL \
   --dataset $DATASET \
