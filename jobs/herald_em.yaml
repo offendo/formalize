@@ -31,7 +31,7 @@ spec:
           workingDir: /app/formalize
           env:
             - name: CONFIG
-              value: "axolotl_configs/lora_herald_iter0.yaml"
+              value: "axolotl_configs/lora_herald_iter1.yaml"
           volumeMounts:
             - name: git-repo
               mountPath: /app

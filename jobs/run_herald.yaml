@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-run-herald
+  name: nilay-formalize-run-herald-full
 spec:
   template:
     spec:
@@ -37,7 +37,7 @@ spec:
             - name: OUTPUT_PATH
               value: /volume/math_atlas_herald_iteration_1_debug
             - name: NUM_SAMPLES
-              value: "100"
+              value: "-1"
           volumeMounts:
             - name: git-repo
               mountPath: /app
