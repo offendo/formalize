@@ -4,7 +4,7 @@ huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 wandb login $(cat /etc/api-tokens/wandb-token)
 
 # Install xformers
-pip3 install -U xformers --index-url https://download.pytorch.org/whl/cu126
+pip3 install xformers --index-url https://download.pytorch.org/whl/cu124
 
 axolotl fetch deepspeed_configs
 axolotl train $CONFIG
