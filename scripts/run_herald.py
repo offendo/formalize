@@ -19,7 +19,7 @@ from argparse import ArgumentParser
 
 
 def format_example(example: dict):
-    name = example["informal_name"]
+    name = example["name"]
     nl = example["informal_statement"]
     fl = example["formal_statement"]
     system = "You are an expert at Lean 4 and Mathematics."
@@ -32,7 +32,7 @@ def format_example(example: dict):
     return {"conversation": messages}
 
 def format_reverse_example(example: dict):
-    name = example["informal_name"]
+    name = example["name"]
     nl = example["informal_statement"]
     # Need to get the formal language but without the comment
     fl = ''.join(re.split(r"\n(theorem|lemma)", example["formal_statement"], re.MULTILINE)[-2:])
@@ -89,12 +89,12 @@ if __name__ == "__main__":
         else:
             name = None
             theorem = None
-        return {"informal_name": name, "informal_statement": theorem}
+        return {"name": name, "informal_statement": text}
 
     ds = ds.map(lambda x: split_off_name(x["informal_statement"]), batched=False)
-    ds = ds.filter(lambda ex: ex["informal_name"] != None)
+    ds = ds.filter(lambda ex: ex["name"] != None)
 
-    batch = [dict(id=ex["informal_name"], informal_statement=ex["informal_statement"]) for ex in ds]
+    batch = [dict(id=ex["name"], informal_statement=ex["informal_statement"]) for ex in ds]
     out = translator.batch_generate(
         batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens)
     )
@@ -106,7 +106,7 @@ if __name__ == "__main__":
             dict(
                 informal_statement=ex["informal_statement"],
                 formal_statement=all_outputs[idx],
-                informal_name=ex["name"],
+                name=ex["name"],
             )
             for idx, ex in enumerate(ds)
         ]
