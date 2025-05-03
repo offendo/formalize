@@ -1,4 +1,4 @@
-base_model: /volume/herald_iteration_0/merged
+base_model: "/volume/herald_iteration_0/merged"
 
 # Performance optimizations
 # =========================
@@ -36,13 +36,16 @@ output_dir: /volume/herald_iteration_1
 logging_steps: 10
 eval_strategy: "no" # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
 save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
-save_steps: 250 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
+save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
 save_total_limit: 3 # Checkpoints saved at a time
 wandb_project: herald-em-autoformalization # Your wandb project name
 wandb_name: herald_iteration_1 # Set the name of your wandb run
 
 ## Lora
 adapter: lora
+
+load_in_8bit: true
+load_in_4bit: false
 
 # LoRA hyperparameters
 # For more details about the following options, see:
@@ -62,7 +65,7 @@ lora_target_modules:
 ## Performance
 bf16: true
 flash_attention: false
-gradient_checkpointing: false
+gradient_checkpointing: true
 
 # Dataset
 # =======
