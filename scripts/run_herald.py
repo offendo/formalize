@@ -31,19 +31,23 @@ def format_example(example: dict):
     ]
     return {"conversation": messages}
 
+
 def format_reverse_example(example: dict):
     name = example["name"]
     nl = example["informal_statement"]
     # Need to get the formal language but without the comment
-    fl = ''.join(re.split(r"\n(theorem|lemma)", example["formal_statement"], re.MULTILINE)[-2:])
+    fl = "".join(re.split(r"\n(theorem|lemma)", example["formal_statement"], re.MULTILINE)[-2:])
     system = "You are an expert at Lean 4 and Mathematics."
-    instruction = f"Please translate the formal language statement in Lean 4 into natural language\n**Formal statement**\n{fl}\n"
+    instruction = (
+        f"Please translate the formal language statement in Lean 4 into natural language\n**Formal statement**\n{fl}\n"
+    )
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": instruction},
         {"role": "assistant", "content": nl},
     ]
     return {"conversation": messages}
+
 
 if __name__ == "__main__":
 
