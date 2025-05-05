@@ -32,6 +32,16 @@ spec:
           env:
             - name: CONFIG
               value: "axolotl_configs/lora_herald_iter1.yaml"
+            - name: MODEL
+              value: "/volume/..."
+            - name: DATASET
+              value: "/volume/..."
+            - name: OUTPUT_PATH
+              value: "/volume/..."
+            - name: NUM_SAMPLES
+              value: "-1"
+            - name: GENERATIONS
+              value: "1"
           volumeMounts:
             - name: git-repo
               mountPath: /app
