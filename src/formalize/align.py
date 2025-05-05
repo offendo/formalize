@@ -3,6 +3,7 @@
 import json
 import os
 import pickle
+import string
 from dataclasses import dataclass
 from pathlib import Path
 from pprint import pprint
@@ -13,7 +14,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import typer
-from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset
+from more_itertools import chunked
+from tqdm import tqdm
+from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from sklearn.metrics import precision_recall_fscore_support, roc_auc_score
 from transformers import (
@@ -548,6 +551,82 @@ def test(
             pickle.dump({"label": labels, "cert_score": cert_score, "sim_score": sim_score}, f)
         df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score})
         df.to_json(Path(output_dir, f"{split}_preds.json"))
+
+@app.command()
+def predict_herald(
+    model_name: Annotated[str, Option(help="path to model to test", rich_help_panel="Model Config")],
+    dataset: Annotated[str, Option(help="path to datasets to test", rich_help_panel="Data Config")],
+    output_json: Annotated[str, Option(help="path to output json", rich_help_panel="Data Config")],
+    adapter_name: Annotated[str, Option(help="path to adapter to test", rich_help_panel="Model Config")] = None,
+    max_tokens: Annotated[int, Option(help="max tokens", rich_help_panel="Training Config")] = 2048,
+    gpu_memory_utilization: Annotated[float, Option(help="percent of GPU to give to unsloth", rich_help_panel="Training Config")] = 0.6,
+    seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
+    batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
+):
+    model, tokenizer = load_model(
+        model_name,
+        max_length=max_tokens,
+        lora_rank=-1,
+        gpu_memory_utilization=gpu_memory_utilization,
+        seed=seed,
+        unsloth=False,
+        adapter_name=adapter_name,
+    )
+
+    # Everything here is herald specific stuff
+    if dataset.endswith('.json'):
+        df = pd.read_json(dataset)
+        ds = Dataset.from_pandas(df).remove_columns(['__index_level_0__'])
+    else:
+        ds = load_from_disk(dataset)
+
+    def split_off_name(text):
+        splitted = text.split("**", maxsplit=2)
+        if len(splitted) == 3:
+            _, name, theorem = splitted
+        elif len(splitted) == 2:
+            _, theorem = splitted
+            name = "Theorem"
+        else:
+            name = None
+            theorem = None
+        return {"id": name, "informal_statement": theorem}
+
+    def format_example(example):
+        nl = split_off_name(example["informal_statement"])["informal_statement"].strip()
+        nl = nl.replace(r"\(", "$").replace(r"\)", "$")  # convert from \( to $
+        nl = nl.lstrip(string.punctuation)
+        fl = example["formal_statement"].split("-/")[-1].split("sorry")[0].strip()
+        return {"index": example.name, "input": nl, "output": fl}
+
+    ds = ds.map(format_example, batched=False)
+    df = ds.to_pandas()
+
+    chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
+    collator = CustomCollator(tokenizer, mlm=False)
+
+    certs = []
+    sims = []
+    for batch in chunked(tqdm(df.to_dict(orient='records')), batch_size):
+        size = len(batch)
+        batch = {key: [batch[i][key] for i in range(size)] for key in batch[0].keys()}
+        batch = tokenize_chat(batch, chat_marker, tokenizer)
+        batch = [{key: val[i] for key, val in batch.items()} for i in range(size)]
+        batch = collator(batch)
+        batch = {key: val.to(model.device) for key, val in batch.items()}
+        with torch.no_grad():
+            model_outputs = model(**batch, output_hidden_states=True)
+            scores = compute_formal_align_score(batch, model_outputs)
+            certs.extend(scores["certainty_score"].tolist())
+            sims.extend(scores["similarity_score"].tolist())
+
+    df["certainty_score"] = certs
+    df["similarity_score"] = sims
+    df["score"] = (df['certainty_score'] + df['similarity_score']) / 2
+    df["aligned"] = df['score']  > 0.5
+    print(df['aligned'].value_counts() / len(df))
+
+    ds.to_json(output_json)
 
 
 if __name__ == "__main__":

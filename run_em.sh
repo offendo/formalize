@@ -14,9 +14,11 @@ apt -y install cuda-toolkit-12-4
 # Do training
 axolotl fetch deepspeed_configs
 axolotl train $CONFIG
+echo "finished training"
 
 # merge the lora weights
 axolotl merge-lora $CONFIG
+echo "merged"
 
 # Do inference
 python scripts/run_herald.py \
@@ -25,10 +27,12 @@ python scripts/run_herald.py \
   --output_path $OUTPUT_PATH \
   --num_samples $NUM_SAMPLES \
   --generations $GENERATIONS
+echo "finished inference"
 
 # Do alignment scoring
-python scripts/run_align.py \
-  --model $MODEL \
-  --dataset "$OUTPUT_PATH.json" \
-  --output_path "$OUTPUT_PATH.scored.json" \
+python src/formalize/align.py predict_herald \
+  --model_name $MODEL \
+  --dataset "$OUTPUT_PATH" \
+  --output_json "$OUTPUT_PATH.json" \
   --batch_size 2
+echo "finished scoring"
