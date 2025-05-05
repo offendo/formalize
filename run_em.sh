@@ -10,8 +10,6 @@ dpkg -i cuda-keyring_1.1-1_all.deb
 apt update
 apt -y install cuda-toolkit-12-4
 
-conda install -y nvidia/label/cuda-12.4.0::cuda-toolkit
-
 axolotl fetch deepspeed_configs
 axolotl train $CONFIG
 
