@@ -1,0 +1,80 @@
+base_model: "/volume/herald_iteration_1_positives/merged"
+
+# Performance optimizations
+# =========================
+plugins:
+  # - axolotl.integrations.cut_cross_entropy.CutCrossEntropyPlugin
+  - axolotl.integrations.liger.LigerPlugin
+
+## Deepspeed
+deepspeed: deepspeed_configs/zero2.json
+
+## CCE
+cut_cross_entropy: false # doesn't work with qwen
+
+## Liger
+liger_rope: true
+liger_rms_norm: true
+liger_glu_activation: true
+liger_layer_norm: true
+liger_fused_linear_cross_entropy: true
+
+# Training settings
+# =================
+## Training
+micro_batch_size: 4
+auto_find_batch_size: true
+gradient_accumulation_steps: 2
+num_epochs: 1
+learning_rate: 0.0001
+warmup_ratio: 0.05
+lr_scheduler: cosine
+optimizer: paged_adamw_8bit
+output_dir: /volume/herald_iteration_2_positives
+
+## Logging and saving
+logging_steps: 10
+eval_strategy: "no" # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
+save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
+save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
+save_total_limit: 3 # Checkpoints saved at a time
+wandb_project: herald-em-autoformalization # Your wandb project name
+wandb_name: herald_iteration_2_positives # Set the name of your wandb run
+
+## Lora
+adapter: lora
+
+load_in_8bit: true
+load_in_4bit: false
+
+# LoRA hyperparameters
+# For more details about the following options, see:
+# https://www.anyscale.com/blog/fine-tuning-llms-lora-or-full-parameter-an-in-depth-analysis-with-llama-2
+lora_r: 32
+lora_alpha: 16
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - v_proj
+  - k_proj
+  - o_proj
+  - gate_proj
+  - down_proj
+  - up_proj
+
+## Performance
+bf16: true
+flash_attention: false
+gradient_checkpointing: true
+
+# Dataset
+# =======
+sequence_len: 2048
+dataset_prepared_path: dataset
+dataset_processes: 1
+datasets:
+  - path: /volume/math_atlas_herald_iteration_2_positives
+    type: chat_template
+    roles_to_train: ["assistant"]
+    chat_template: tokenizer_default
+    field_messages: conversation
