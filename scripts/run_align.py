@@ -87,5 +87,3 @@ if __name__ == "__main__":
     ds["similarity_score"] = sims
 
     ds.to_json(args.output_path)
-    if args.output_dataset_iteration:
-        ds[["text", "formal", "certainty_score", "similarity_score"]].save_to_disk(args.output_dataset_iteration)
