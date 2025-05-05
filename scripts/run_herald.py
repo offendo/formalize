@@ -108,7 +108,7 @@ if __name__ == "__main__":
             max_tokens=args.max_tokens,
         ),
     )
-    all_outputs = [ex for ex in out]
+    all_outputs = [ex[0] for ex in out]
 
     # Do we need to do reranking now?
 
