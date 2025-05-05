@@ -31,13 +31,13 @@ spec:
           workingDir: /app/formalize
           env:
             - name: CONFIG
-              value: "axolotl_configs/lora_herald_iter1.yaml"
+              value: "axolotl_configs/lora_herald_iter2.yaml"
             - name: MODEL
-              value: "/volume/..."
+              value: /volume/herald_iteration_2/merged
             - name: DATASET
-              value: "/volume/..."
+              value: offendo/math-atlas-titled-theorems
             - name: OUTPUT_PATH
-              value: "/volume/..."
+              value: /volume/math_atlas_herald_iteration_3
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS

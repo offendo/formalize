@@ -29,6 +29,6 @@ python scripts/run_herald.py \
 # Do alignment scoring
 python scripts/run_align.py \
   --model $MODEL \
-  --dataset $OUTPUT_PATH \
-  --output_path "$OUTPUT_PATH.scored" \
+  --dataset "$OUTPUT_PATH.json" \
+  --output_path "$OUTPUT_PATH.scored.json" \
   --batch_size 2
