@@ -85,5 +85,8 @@ if __name__ == "__main__":
 
     ds["certainty_score"] = certs
     ds["similarity_score"] = sims
+    ds["score"] = (ds['certainty_score'] + ds['similarity_score']) / 2
+    ds["aligned"] = ds['score']  > 0.5
+    print(ds['aligned'].value_counts() / len(ds))
 
     ds.to_json(args.output_path)
