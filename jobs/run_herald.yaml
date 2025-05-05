@@ -31,11 +31,11 @@ spec:
           workingDir: /app/formalize
           env:
             - name: MODEL
-              value: /volume/herald_iteration_0/merged
+              value: /volume/herald_iteration_1/merged
             - name: DATASET
               value: offendo/math-atlas-titled-theorems
             - name: OUTPUT_PATH
-              value: /volume/math_atlas_herald_iteration_1_debug
+              value: /volume/math_atlas_herald_iteration_2_formatted
             - name: NUM_SAMPLES
               value: "-1"
           volumeMounts:

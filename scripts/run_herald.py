@@ -57,6 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
     parser.add_argument("--num_samples", type=int, default=-1)
+    parser.add_argument("--generations", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max_tokens", type=int, default=2048)
@@ -100,9 +101,16 @@ if __name__ == "__main__":
 
     batch = [dict(id=ex["name"], informal_statement=ex["informal_statement"]) for ex in ds]
     out = translator.batch_generate(
-        batch, sampling_params=dict(temperature=args.temperature, max_tokens=args.max_tokens)
+        batch,
+        sampling_params=dict(
+            n=args.generations,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+        ),
     )
-    all_outputs = [ex[0] for ex in out]
+    all_outputs = [ex for ex in out]
+
+    # Do we need to do reranking now?
 
     # Create a new dataset with the new outputs
     new_ds = Dataset.from_list(
