@@ -129,3 +129,4 @@ if __name__ == "__main__":
 
     # Save to disk
     new_ds.save_to_disk(args.output_path)
+    new_ds.to_pandas().to_json(Path(args.output_path).with_suffix('.json'))
