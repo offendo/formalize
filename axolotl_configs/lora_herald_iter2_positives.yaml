@@ -1,4 +1,4 @@
-base_model: "/volume/herald_iteration_1_positives/merged"
+base_model: "/volume/autoformalization/models/herald_iter1_positives/merged"
 
 # Performance optimizations
 # =========================

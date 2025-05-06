@@ -30,7 +30,7 @@ python scripts/run_herald.py \
 echo "finished inference"
 
 # Do alignment scoring
-python src/formalize/align.py predict_herald \
+python src/formalize/align.py predict-herald \
   --model_name $MODEL \
   --dataset "$OUTPUT_PATH" \
   --output_json "$OUTPUT_PATH.json" \
