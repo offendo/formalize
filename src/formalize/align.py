@@ -576,9 +576,8 @@ def predict_herald(
     # Everything here is herald specific stuff
     if dataset.endswith('.json'):
         df = pd.read_json(dataset)
-        ds = Dataset.from_pandas(df).remove_columns(['__index_level_0__'])
     else:
-        ds = load_from_disk(dataset)
+        df = load_from_disk(dataset).to_pandas()
 
     def split_off_name(text):
         splitted = text.split("**", maxsplit=2)
@@ -597,10 +596,10 @@ def predict_herald(
         nl = nl.replace(r"\(", "$").replace(r"\)", "$")  # convert from \( to $
         nl = nl.lstrip(string.punctuation)
         fl = example["formal_statement"].split("-/")[-1].split("sorry")[0].strip()
-        return {"index": example.name, "input": nl, "output": fl}
+        return {"index": example['name'], "input": nl, "output": fl}
 
-    ds = ds.map(format_example, batched=False)
-    df = ds.to_pandas()
+    examples = pd.json_normalize(df.apply(lambda row: format_example(row), axis=1))
+    df = pd.merge(left=df, right=examples, left_index=True, right_index=True)
 
     chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer, mlm=False)
@@ -626,7 +625,7 @@ def predict_herald(
     df["aligned"] = df['score']  > 0.5
     print(df['aligned'].value_counts() / len(df))
 
-    ds.to_json(output_json)
+    df.to_json(output_json)
 
 
 if __name__ == "__main__":
