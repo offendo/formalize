@@ -23,8 +23,8 @@ echo "finished inference"
 
 # Do alignment scoring
 python src/formalize/align.py predict-herald \
-  --model_name $MODEL \
+  --model-name $MODEL \
   --dataset "$OUTPUT_PATH" \
-  --output_json "$OUTPUT_PATH.json" \
-  --batch_size 2
+  --output-json "$OUTPUT_PATH.json" \
+  --batch-size 2
 echo "finished scoring"
