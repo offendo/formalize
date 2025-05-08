@@ -73,7 +73,7 @@ sequence_len: 2048
 dataset_prepared_path: dataset
 dataset_processes: 1
 datasets:
-  - path: /volume/autoformalization/herald_iter3_positives_output
+  - path: /volume/autoformalization/herald_iter3_positives_filtered
     type: chat_template
     roles_to_train: ["assistant"]
     chat_template: tokenizer_default
