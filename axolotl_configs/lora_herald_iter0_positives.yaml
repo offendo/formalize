@@ -30,7 +30,7 @@ learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
 optimizer: paged_adamw_8bit
-output_dir: /volume/autoformalization/models/herald_iter0_positive
+output_dir: /volume/autoformalization/models/herald_iter0_positives
 
 ## Logging and saving
 logging_steps: 10
@@ -73,7 +73,7 @@ sequence_len: 2048
 dataset_prepared_path: dataset
 dataset_processes: 1
 datasets:
-  - path: offendo/herald_base_positive_filtered
+  - path: offendo/herald_base_positives_filtered
     type: chat_template
     roles_to_train: ["assistant"]
     chat_template: tokenizer_default
