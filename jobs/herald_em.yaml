@@ -37,7 +37,7 @@ spec:
             - name: DATASET
               value: offendo/math-atlas-titled-theorems
             - name: OUTPUT_PATH
-              value: /volume/autoformalization/herald_iter3_positives_output
+              value: /volume/autoformalization/herald_iter2_positives_output
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS

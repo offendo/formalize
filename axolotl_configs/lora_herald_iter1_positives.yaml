@@ -1,4 +1,4 @@
-base_model: "/volume/herald_iteration_0/merged"
+base_model: "/volume/autoformalization/models/herald_iter0_positive/merged"
 
 # Performance optimizations
 # =========================
@@ -30,7 +30,7 @@ learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
 optimizer: paged_adamw_8bit
-output_dir: /volume/herald_iteration_1_positives
+output_dir: /volume/autoformalization/models/herald_iter1_positive/
 
 ## Logging and saving
 logging_steps: 10
@@ -39,7 +39,7 @@ save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of eac
 save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
 save_total_limit: 3 # Checkpoints saved at a time
 wandb_project: herald-em-autoformalization # Your wandb project name
-wandb_name: herald_iteration_1_positives # Set the name of your wandb run
+wandb_name: herald_iteration_1_positive # Set the name of your wandb run
 
 ## Lora
 adapter: lora
@@ -73,7 +73,7 @@ sequence_len: 2048
 dataset_prepared_path: dataset
 dataset_processes: 1
 datasets:
-  - path: /volume/math_atlas_herald_iteration_0_positives_formatted/
+  - path: offendo/herald_iter0_positive_filtered
     type: chat_template
     roles_to_train: ["assistant"]
     chat_template: tokenizer_default
