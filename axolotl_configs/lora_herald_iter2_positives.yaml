@@ -69,12 +69,14 @@ gradient_checkpointing: true
 
 # Dataset
 # =======
+hf_use_auth_token: true
 sequence_len: 2048
 dataset_prepared_path: dataset
 dataset_processes: 1
 datasets:
   - path: offendo/herald_iter1_positives_filtered
     type: chat_template
+    split: "train"
     roles_to_train: ["assistant"]
     chat_template: tokenizer_default
     field_messages: conversation

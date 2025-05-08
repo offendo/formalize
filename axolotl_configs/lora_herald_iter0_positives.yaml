@@ -69,6 +69,7 @@ gradient_checkpointing: true
 
 # Dataset
 # =======
+hf_use_auth_token: true
 sequence_len: 2048
 dataset_prepared_path: dataset
 dataset_processes: 1
