@@ -610,9 +610,11 @@ def predict_herald(
             examples.append({"index": example["name"], "input": nl, "output": fl})
         return examples
 
-    examples = df.apply(lambda row: format_example(row), axis=1).explode()
-    examples = pd.json_normalize(examples)
-    df = pd.merge(left=df, right=examples, left_index=True, right_index=True, how="right")
+    df['examples'] = df.apply(lambda row: format_example(row), axis=1)
+    df = df.explode(['examples', 'formal_statement'])
+    cols = pd.json_normalize(df['examples'])
+    df = pd.merge(left=df, right=cols, left_index=True, right_index=True, how="right")
+    df = df.drop('examples', axis=1)
 
     chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer, mlm=False)
@@ -636,7 +638,8 @@ def predict_herald(
     df["similarity_score"] = sims
     df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
     df["aligned"] = df["score"] > 0.5
-    print(df["aligned"].value_counts() / len(df))
+
+    df = df.groupby('informal_statement').agg(list)
 
     df.to_json(output_json)
 
