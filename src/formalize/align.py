@@ -613,8 +613,6 @@ def predict_herald(
     examples = df.apply(lambda row: format_example(row), axis=1).explode()
     examples = pd.json_normalize(examples)
     df = pd.merge(left=df, right=examples, left_index=True, right_index=True, how="right")
-    print(df)
-    breakpoint()
 
     chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer, mlm=False)

@@ -7,5 +7,6 @@ wandb login $(cat /etc/api-tokens/wandb-token)
 python src/formalize/align.py predict-herald \
   --model-name "/volume/formal_align/formal_align_qwen_3b_instruct/" \
   --dataset "$DATASET" \
-  --output-json "$OUTPUT_PATH"
+  --output-json "$OUTPUT_PATH" \
+  --batch-size 8
 echo "finished scoring"
