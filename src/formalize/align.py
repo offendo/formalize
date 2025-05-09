@@ -595,11 +595,19 @@ def predict_herald(
         nl = split_off_name(example["informal_statement"])["informal_statement"].strip()
         nl = nl.replace(r"\(", "$").replace(r"\)", "$")  # convert from \( to $
         nl = nl.lstrip(string.punctuation)
-        fl = example["formal_statement"].split("-/")[-1].split("sorry")[0].strip()
-        return {"index": example['name'], "input": nl, "output": fl}
 
-    examples = pd.json_normalize(df.apply(lambda row: format_example(row), axis=1))
-    df = pd.merge(left=df, right=examples, left_index=True, right_index=True)
+        statements = example['formal_statement']
+        examples = []
+        for stm in statements:
+            fl = stm.split("-/")[-1].split("sorry")[0].strip()
+            examples.append({"index": example['name'], "input": nl, "output": fl})
+        return examples
+
+    examples = df.apply(lambda row: format_example(row), axis=1).explode()
+    examples = pd.json_normalize(examples)
+    df = pd.merge(left=df, right=examples, left_index=True, right_index=True, how='right')
+    print(df)
+    breakpoint()
 
     chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer, mlm=False)

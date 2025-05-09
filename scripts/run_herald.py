@@ -10,8 +10,9 @@ from vllm import LLM, SamplingParams
 from tqdm import tqdm
 
 
-if not os.path.exists(os.getcwd() + "/herald_translator"):
-    os.system("git clone https://github.com/frenzymath/herald_translator.git")
+if __name__ == "__main__":
+    if not os.path.exists(os.getcwd() + "/herald_translator"):
+        os.system("git clone https://github.com/frenzymath/herald_translator.git")
 
 sys.path.append(os.getcwd() + "/herald_translator")
 from worker.translator import Translator
@@ -108,7 +109,7 @@ if __name__ == "__main__":
             max_tokens=args.max_tokens,
         ),
     )
-    all_outputs = [ex[0] for ex in out]
+    all_outputs = [ex for ex in out]
 
     # Do we need to do reranking now?
 
@@ -128,5 +129,4 @@ if __name__ == "__main__":
     new_ds = new_ds.map(format_example, batched=False)
 
     # Save to disk
-    new_ds.save_to_disk(args.output_path)
-    new_ds.to_pandas().to_json(Path(args.output_path).with_suffix('.json'))
+    new_ds.to_pandas().to_json(Path(args.output_path).with_suffix(".json"))

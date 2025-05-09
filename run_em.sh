@@ -20,11 +20,3 @@ python scripts/run_herald.py \
   --num_samples $NUM_SAMPLES \
   --generations $GENERATIONS
 echo "finished inference"
-
-# Do alignment scoring
-python src/formalize/align.py predict-herald \
-  --model-name "/volume/formal_align/formal_align_qwen_3b_instruct/" \
-  --dataset "$OUTPUT_PATH" \
-  --output-json "$OUTPUT_PATH.json" \
-  --batch-size 2
-echo "finished scoring"
