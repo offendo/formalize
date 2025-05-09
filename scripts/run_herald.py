@@ -100,7 +100,7 @@ if __name__ == "__main__":
     ds = ds.filter(lambda ex: ex["name"] != None)
 
     batch = [dict(id=ex["name"], informal_statement=ex["informal_statement"]) for ex in ds]
-    out = translator.batch_generate(
+    all_outputs = translator.batch_generate(
         batch,
         sampling_params=dict(
             n=args.generations,
@@ -108,12 +108,10 @@ if __name__ == "__main__":
             max_tokens=args.max_tokens,
         ),
     )
-    all_outputs = [ex for ex in out]
-
-    # Do we need to do reranking now?
+    # Do we need to do reranking here?
 
     # Create a new dataset with the new outputs
-    new_ds = Dataset.from_list(
+    new_ds = pd.DataFrame.from_records(
         [
             dict(
                 informal_statement=ex["informal_statement"],
@@ -124,8 +122,5 @@ if __name__ == "__main__":
         ]
     )
 
-    # Add the `conversation` key
-    new_ds = new_ds.map(format_example, batched=False)
-
     # Save to disk
-    new_ds.to_pandas().to_json(Path(args.output_path).with_suffix(".json"))
+    new_ds.to_json(Path(args.output_path).with_suffix(".json"))
