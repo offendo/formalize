@@ -552,6 +552,7 @@ def test(
         df = pd.DataFrame({"label": labels, "cert_score": cert_score, "sim_score": sim_score})
         df.to_json(Path(output_dir, f"{split}_preds.json"))
 
+
 @app.command()
 def predict_herald(
     model_name: Annotated[str, Option(help="path to model to test", rich_help_panel="Model Config")],
@@ -559,7 +560,9 @@ def predict_herald(
     output_json: Annotated[str, Option(help="path to output json", rich_help_panel="Data Config")],
     adapter_name: Annotated[str, Option(help="path to adapter to test", rich_help_panel="Model Config")] = None,
     max_tokens: Annotated[int, Option(help="max tokens", rich_help_panel="Training Config")] = 2048,
-    gpu_memory_utilization: Annotated[float, Option(help="percent of GPU to give to unsloth", rich_help_panel="Training Config")] = 0.6,
+    gpu_memory_utilization: Annotated[
+        float, Option(help="percent of GPU to give to unsloth", rich_help_panel="Training Config")
+    ] = 0.6,
     seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
 ):
@@ -574,7 +577,7 @@ def predict_herald(
     )
 
     # Everything here is herald specific stuff
-    if dataset.endswith('.json'):
+    if dataset.endswith(".json"):
         df = pd.read_json(dataset)
     else:
         df = load_from_disk(dataset).to_pandas()
@@ -596,16 +599,18 @@ def predict_herald(
         nl = nl.replace(r"\(", "$").replace(r"\)", "$")  # convert from \( to $
         nl = nl.lstrip(string.punctuation)
 
-        statements = example['formal_statement']
+        statements = example["formal_statement"]
+        if not isinstance(statements, list):
+            statements = [statements]
         examples = []
         for stm in statements:
             fl = stm.split("-/")[-1].split("sorry")[0].strip()
-            examples.append({"index": example['name'], "input": nl, "output": fl})
+            examples.append({"index": example["name"], "input": nl, "output": fl})
         return examples
 
     examples = df.apply(lambda row: format_example(row), axis=1).explode()
     examples = pd.json_normalize(examples)
-    df = pd.merge(left=df, right=examples, left_index=True, right_index=True, how='right')
+    df = pd.merge(left=df, right=examples, left_index=True, right_index=True, how="right")
     print(df)
     breakpoint()
 
@@ -614,7 +619,7 @@ def predict_herald(
 
     certs = []
     sims = []
-    for batch in chunked(tqdm(df.to_dict(orient='records')), batch_size):
+    for batch in chunked(tqdm(df.to_dict(orient="records")), batch_size):
         size = len(batch)
         batch = {key: [batch[i][key] for i in range(size)] for key in batch[0].keys()}
         batch = tokenize_chat(batch, chat_marker, tokenizer)
@@ -629,9 +634,9 @@ def predict_herald(
 
     df["certainty_score"] = certs
     df["similarity_score"] = sims
-    df["score"] = (df['certainty_score'] + df['similarity_score']) / 2
-    df["aligned"] = df['score']  > 0.5
-    print(df['aligned'].value_counts() / len(df))
+    df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
+    df["aligned"] = df["score"] > 0.5
+    print(df["aligned"].value_counts() / len(df))
 
     df.to_json(output_json)
 

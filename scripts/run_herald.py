@@ -59,7 +59,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, required=True)
     parser.add_argument("--num_samples", type=int, default=-1)
     parser.add_argument("--generations", type=int, default=1)
-    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max_tokens", type=int, default=2048)
 
