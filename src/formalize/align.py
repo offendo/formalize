@@ -582,6 +582,8 @@ def predict_herald(
     else:
         df = load_from_disk(dataset).to_pandas()
 
+    df = df[["informal_statement", "formal_statement", "name", "conversation"]]
+
     def split_off_name(text):
         splitted = text.split("**", maxsplit=2)
         if len(splitted) == 3:
