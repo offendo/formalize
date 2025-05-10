@@ -70,6 +70,22 @@ spec:
               # nvidia.com/gpu: "2"
               nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
+        - name: verifier
+          image: projectnumina/kimina-lean-server:1.0.0
+          volumeMounts:
+            - mountPath: /dev/shm
+              name: dshm
+            - name: nilay-data-volume-rwm
+              mountPath: /volume
+            - name: api-tokens
+              mountPath: /etc/api-tokens
+          resources:
+            limits:
+              memory: 128Gi
+              cpu: 8
+            requests:
+              memory: 128Gi
+              cpu: 8
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

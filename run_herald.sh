@@ -9,4 +9,4 @@ python scripts/run_herald.py \
   --num_samples $NUM_SAMPLES  \
   --generations $GENERATIONS \
   --temperature $TEMPERATURE \
-  --top_p $TOP_P
+  --top-p $TOP_P
