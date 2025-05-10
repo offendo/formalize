@@ -27,41 +27,16 @@ spec:
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run_em.sh"]
+          command: ["bash", "run_pipeline.sh"]
           workingDir: /app/formalize
           env:
             - name: CONFIG
               value: "axolotl_configs/lora_herald_iter3_positives.yaml"
-          volumeMounts:
-            - name: git-repo
-              mountPath: /app
-            - name: nilay-data-volume-rwm
-              mountPath: /volume
-            - name: api-tokens
-              mountPath: /etc/api-tokens
-            - name: dshm
-              mountPath: /dev/shm
-          resources:
-            limits:
-              memory: 64Gi
-              cpu: 2
-              nvidia.com/gpu: "2"
-              ephemeral-storage: 50Gi
-            requests:
-              memory: 64Gi
-              cpu: 2
-              nvidia.com/gpu: "2"
-              ephemeral-storage: 50Gi
-        - name: inference
-          image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run_herald.sh"]
-          workingDir: /app/formalize
-          env:
-            - name: MODEL
-              value: /volume/autoformalization/models/herald_iter3_positives/merged
-            - name: DATASET
-              value: offendo/math-atlas-titled-theorems
-            - name: OUTPUT_PATH
+            - name: HERALD_OUTPUT
+              value: /volume/autoformalization/herald_iter3_positives_output.json
+            - name: ALIGN_INPUT
+              value: /volume/autoformalization/herald_iter3_positives_output.json
+            - name: ALIGN_OUTPUT
               value: /volume/autoformalization/herald_iter3_positives_output.json
             - name: NUM_SAMPLES
               value: "-1"
@@ -91,15 +66,10 @@ spec:
               cpu: 2
               nvidia.com/gpu: "2"
               ephemeral-storage: 50Gi
-        - name: align
+        - name: verify
           image: ghcr.io/offendo/formalize:latest
           command: ["bash", "run_align.sh"]
           workingDir: /app/formalize
-          env:
-            - name: DATASET
-              value: /volume/autoformalization/herald_iter3_positives_output.json
-            - name: OUTPUT_PATH
-              value: /volume/autoformalization/herald_iter3_positives_output.json
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -112,13 +82,11 @@ spec:
           resources:
             limits:
               memory: 64Gi
-              cpu: 2
-              nvidia.com/gpu: "2"
+              cpu: 32
               ephemeral-storage: 50Gi
             requests:
               memory: 64Gi
-              cpu: 2
-              nvidia.com/gpu: "2"
+              cpu: 32
               ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync

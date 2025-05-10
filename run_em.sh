@@ -11,12 +11,3 @@ echo "finished training"
 # merge the lora weights
 axolotl merge-lora $CONFIG
 echo "merged"
-
-# Do inference
-python scripts/run_herald.py \
-  --model $MODEL \
-  --dataset $DATASET \
-  --output_path $OUTPUT_PATH \
-  --num_samples $NUM_SAMPLES \
-  --generations $GENERATIONS
-echo "finished inference"

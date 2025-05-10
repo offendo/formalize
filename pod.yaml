@@ -23,29 +23,6 @@ spec:
       image: ghcr.io/offendo/formalize:latest
       command: ["sleep", "infinity"]
       workingDir: /app/formalize
-      env:
-        - name: MODEL_NAME
-          value: "meta-llama/Llama-3.2-3B"
-        - name: WANDB_RUN
-          value: "debug"
-        - name: LR
-          value: "2e-5"
-        - name: OPTIMIZER
-          value: "paged_adamw_8bit"
-        - name: SCHEDULER
-          value: "cosine"
-        - name: EPOCHS
-          value: "2"
-        - name: BATCH_SIZE
-          value: "4"
-        - name: GRAD_ACC
-          value: "4"
-        - name: EVAL_STEPS
-          value: "500"
-        - name: GRAD_CKPT
-          value: ""
-        - name: LORA_RANK
-          value: "-1"
       volumeMounts:
         - mountPath: /dev/shm
           name: dshm
@@ -65,6 +42,29 @@ spec:
           memory: 32Gi
           cpu: 2
           nvidia.com/gpu: "2"
+          ephemeral-storage: 50Gi
+  containers:
+    - name: verifier
+      image: projectnumina/kimina-lean-server:1.0.0
+      command: ["sleep", "infinity"]
+      workingDir: /app/formalize
+      volumeMounts:
+        - mountPath: /dev/shm
+          name: dshm
+        - name: git-repo
+          mountPath: /app
+        - name: nilay-data-volume-rwm
+          mountPath: /volume
+        - name: api-tokens
+          mountPath: /etc/api-tokens
+      resources:
+        limits:
+          memory: 32Gi
+          cpu: 2
+          ephemeral-storage: 50Gi
+        requests:
+          memory: 32Gi
+          cpu: 2
           ephemeral-storage: 50Gi
   initContainers:
     - name: git-sync
