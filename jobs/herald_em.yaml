@@ -1,27 +1,27 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em
+  name: nilay-formalize-train-herald-em-a100
 spec:
   template:
     spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: nvidia.com/gpu.product
-                    operator: In
-                    values:
-                      - NVIDIA-GeForce-RTX-3090
-                      - NVIDIA-GeForce-RTX-4090
-                      - NVIDIA-A100-SXM4-80GB
-                      - NVIDIA-A100-80GB-PCIe
-                      - NVIDIA-A100-80GB-PCIe
-                      - NVIDIA-A40
-                        # - key: nvidia.com/cuda.driver.major
-                        #   operator: In
-                        #   values: ["525", "530", "535"]
+      # affinity:
+      #   nodeAffinity:
+      #     requiredDuringSchedulingIgnoredDuringExecution:
+      #       nodeSelectorTerms:
+      #         - matchExpressions:
+      #             - key: nvidia.com/gpu.product
+      #               operator: In
+      #               values:
+      #                 - NVIDIA-GeForce-RTX-3090
+      #                 - NVIDIA-GeForce-RTX-4090
+      #                 - NVIDIA-A100-SXM4-80GB
+      #                 - NVIDIA-A100-80GB-PCIe
+      #                 - NVIDIA-A100-80GB-PCIe
+      #                 - NVIDIA-A40
+      #                   # - key: nvidia.com/cuda.driver.major
+      #                   #   operator: In
+      #                   #   values: ["525", "530", "535"]
       imagePullSecrets:
         - name: nilay-ghcr-key
       containers:
@@ -31,13 +31,13 @@ spec:
           workingDir: /app/formalize
           env:
             - name: CONFIG
-              value: "axolotl_configs/lora_herald_iter3_positives.yaml"
+              value: "axolotl_configs/full_herald_iter3_positives.yaml"
             - name: HERALD_OUTPUT
-              value: /volume/autoformalization/herald_iter3_positives_output.json
+              value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: ALIGN_INPUT
-              value: /volume/autoformalization/herald_iter3_positives_output.json
+              value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: ALIGN_OUTPUT
-              value: /volume/autoformalization/herald_iter3_positives_output.json
+              value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS
@@ -59,12 +59,14 @@ spec:
             limits:
               memory: 64Gi
               cpu: 2
-              nvidia.com/gpu: "2"
+              # nvidia.com/gpu: "2"
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
             requests:
               memory: 64Gi
               cpu: 2
-              nvidia.com/gpu: "2"
+              # nvidia.com/gpu: "2"
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync
