@@ -32,6 +32,8 @@ spec:
           env:
             - name: CONFIG
               value: "axolotl_configs/full_herald_iter3_positives.yaml"
+            - name: MODEL
+              value: /volume/autoformalization/models/full_herald_iter3_positives
             - name: HERALD_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: ALIGN_INPUT
@@ -57,14 +59,14 @@ spec:
               mountPath: /dev/shm
           resources:
             limits:
-              memory: 64Gi
-              cpu: 2
+              memory: 128Gi
+              cpu: 4
               # nvidia.com/gpu: "2"
               nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
-              memory: 64Gi
-              cpu: 2
+              memory: 128Gi
+              cpu: 4
               # nvidia.com/gpu: "2"
               nvidia.com/a100: "4"
               ephemeral-storage: 50Gi

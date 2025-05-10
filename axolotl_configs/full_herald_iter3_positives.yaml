@@ -30,7 +30,7 @@ learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
 optimizer: paged_adamw_8bit
-output_dir: /volume/autoformalization/models/herald_iter3_positives_full/
+output_dir: /volume/autoformalization/models/full_herald_iter3_positives/
 
 ## Logging and saving
 logging_steps: 10
@@ -39,7 +39,7 @@ save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of eac
 save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
 save_total_limit: 3 # Checkpoints saved at a time
 wandb_project: herald-em-autoformalization # Your wandb project name
-wandb_name: herald_iter3_positives_full # Set the name of your wandb run
+wandb_name: full_herald_iter3_positives # Set the name of your wandb run
 
 ## Lora
 # adapter: lora
