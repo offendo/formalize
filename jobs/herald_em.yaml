@@ -32,6 +32,8 @@ spec:
           env:
             - name: CONFIG
               value: "axolotl_configs/full_herald_iter3_positives.yaml"
+            - name: SKIP_TRAIN
+              value: "true"
             - name: MODEL
               value: /volume/autoformalization/models/full_herald_iter3_positives
             - name: HERALD_OUTPUT
@@ -40,6 +42,10 @@ spec:
               value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: ALIGN_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_output.json
+            - name: VERIFY_INPUT
+              value: /volume/autoformalization/full_herald_iter3_positives_output.json
+            - name: VERIFY_OUTPUT
+              value: /volume/autoformalization/full_herald_iter3_positives_output_verified.json
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS
