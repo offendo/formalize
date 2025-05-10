@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pip install nest_asyncio
+echo "Didn't do any verification"

@@ -66,28 +66,6 @@ spec:
               cpu: 2
               nvidia.com/gpu: "2"
               ephemeral-storage: 50Gi
-        - name: verify
-          image: ghcr.io/offendo/formalize:latest
-          command: ["bash", "run_align.sh"]
-          workingDir: /app/formalize
-          volumeMounts:
-            - name: git-repo
-              mountPath: /app
-            - name: nilay-data-volume-rwm
-              mountPath: /volume
-            - name: api-tokens
-              mountPath: /etc/api-tokens
-            - name: dshm
-              mountPath: /dev/shm
-          resources:
-            limits:
-              memory: 64Gi
-              cpu: 32
-              ephemeral-storage: 50Gi
-            requests:
-              memory: 64Gi
-              cpu: 32
-              ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

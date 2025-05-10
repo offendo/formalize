@@ -34,38 +34,29 @@ spec:
           mountPath: /etc/api-tokens
       resources:
         limits:
-          memory: 32Gi
-          cpu: 2
-          nvidia.com/gpu: "2"
-          ephemeral-storage: 50Gi
+          memory: 4Gi
+          cpu: 4
+          # nvidia.com/gpu: "1"
         requests:
-          memory: 32Gi
-          cpu: 2
-          nvidia.com/gpu: "2"
-          ephemeral-storage: 50Gi
-  containers:
+          memory: 4Gi
+          cpu: 4
+          # nvidia.com/gpu: "1"
     - name: verifier
       image: projectnumina/kimina-lean-server:1.0.0
-      command: ["sleep", "infinity"]
-      workingDir: /app/formalize
       volumeMounts:
         - mountPath: /dev/shm
           name: dshm
-        - name: git-repo
-          mountPath: /app
         - name: nilay-data-volume-rwm
           mountPath: /volume
         - name: api-tokens
           mountPath: /etc/api-tokens
       resources:
         limits:
-          memory: 32Gi
-          cpu: 2
-          ephemeral-storage: 50Gi
+          memory: 28Gi
+          cpu: 1
         requests:
-          memory: 32Gi
-          cpu: 2
-          ephemeral-storage: 50Gi
+          memory: 28Gi
+          cpu: 1
   initContainers:
     - name: git-sync
       image: registry.k8s.io/git-sync/git-sync:v4.1.0
