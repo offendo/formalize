@@ -31,7 +31,7 @@ spec:
           workingDir: /app/formalize
           env:
             - name: CONFIG
-              value: "axolotl_configs/lora_herald_iter2_positives.yaml"
+              value: "axolotl_configs/lora_herald_iter3_positives.yaml"
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -67,6 +67,10 @@ spec:
               value: "-1"
             - name: GENERATIONS
               value: "8"
+            - name: TEMPERATURE
+              value: "1.0"
+            - name: TOP_P
+              value: "0.95"
           volumeMounts:
             - name: git-repo
               mountPath: /app

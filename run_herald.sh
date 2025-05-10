@@ -6,4 +6,7 @@ python scripts/run_herald.py \
   --model $MODEL \
   --dataset $DATASET \
   --output_path $OUTPUT_PATH \
-  --num_samples $NUM_SAMPLES 
+  --num_samples $NUM_SAMPLES  \
+  --generations $GENERATIONS \
+  --temperature $TEMPERATURE \
+  --top_p $TOP_P
