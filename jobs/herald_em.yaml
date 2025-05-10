@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100
+  name: nilay-formalize-train-herald-em-a100-4
 spec:
   template:
     spec:
@@ -60,13 +60,13 @@ spec:
               memory: 64Gi
               cpu: 2
               # nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
               memory: 64Gi
               cpu: 2
               # nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync
