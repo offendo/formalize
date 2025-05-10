@@ -82,10 +82,10 @@ spec:
           resources:
             limits:
               memory: 128Gi
-              cpu: 8
+              cpu: 32
             requests:
               memory: 128Gi
-              cpu: 8
+              cpu: 32
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

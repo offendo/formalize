@@ -20,7 +20,9 @@ if __name__ == "__main__":
     ]
 
     # Launch the query & wait for the response
+    print('Querying server...will take some time')
     response = client.verify(records, timeout=30)
+    print('Done!')
 
     # Parse the outputs
     results = []

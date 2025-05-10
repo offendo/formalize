@@ -33,6 +33,21 @@ dev-dependencies = [
     "isort>=6.0.1",
     "seaborn>=0.13.2",
     "tqdm>=4.67.1",
+    "func-timeout==4.3.5",
+    "loguru>=0.7.3",
+    "tenacity>=9.1.2",
+    "pandas>=2.2.3",
+    "fastapi>=0.115.12",
+    "uvicorn>=0.34.2",
+    "pytest>=8.3.5",
+    "pydantic-settings>=2.9.1",
+    "aiohttp>=3.11.18",
+    "httpx>=0.28.1",
+    "nest-asyncio>=1.6.0",
+    "datasets>=3.6.0",
+    "mypy>=1.15.0",
+    "types-setuptools>=80.3.0.20250505",
+    "types-tqdm>=4.67.0.20250417",
 ]
 
 [tool.rye.scripts]
