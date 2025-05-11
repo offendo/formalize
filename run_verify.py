@@ -1,8 +1,10 @@
 from asyncio import wait_for
 import re
 import time
+from more_itertools import chunked
 import pandas as pd
 import socket
+from tqdm import tqdm
 
 from argparse import ArgumentParser
 from lean_server.client import Lean4Client
@@ -73,32 +75,49 @@ if __name__ == "__main__":
     # Launch the query & wait for the response
     logging.info("Querying server...will take some time.")
     tik = time.time()
-    response = client.verify(records, timeout=30)
+
+    # Do requests batch-wise so we can save every so often, and keep track of progress
+    all_results = []
+    failed = 0
+    pbar = tqdm(records, desc="Querying...")
+    for batch in chunked(pbar, n=256):
+        try:
+            response = client.verify(records, timeout=30)
+
+            # Parse the outputs
+            results = []
+            for thm_output in response["results"]:
+                group_id, thm_id = map(int, thm_output["custom_id"].split("-"))
+
+                # Extract Lean errors
+                error = thm_output["error"]
+
+                # Extract compiler messages
+                resp = thm_output.get("response", {})
+                msg = resp.get("messages", []) if resp else []
+
+                # Check whether it's been verified or not
+                success = True
+                if thm_output["error"]:
+                    success = False
+                elif any([m["severity"] == "error" for m in msg]):
+                    success = False
+
+                results.append(dict(group_id=group_id, theorem_id=thm_id, error=error, messages=msg, verified=success))
+            all_results.extend(results)
+        except Exception as e:
+            empty_results = [
+                dict(group_id=int(gid), theorem_id=int(tid), error=str(e), messages=[], verified=False)
+                for gid, tid in [ex["custom_id"].split("-") for ex in batch]
+            ]
+            failed += len(batch)
+            all_results.extend(empty_results)
+            pbar.set_postfix({"failed": failed})
+
     tok = time.time()
     logging.info(f"Done in {tok-tik:0.2f}s!")
 
-    # Parse the outputs
-    results = []
-    for thm_output in response["results"]:
-        group_id, thm_id = map(int, thm_output["custom_id"].split("-"))
-
-        # Extract Lean errors
-        error = thm_output["error"]
-
-        # Extract compiler messages
-        resp = thm_output.get("response", {})
-        msg = resp.get("messages", []) if resp else []
-
-        # Check whether it's been verified or not
-        success = True
-        if thm_output["error"]:
-            success = False
-        elif any([m["severity"] == "error" for m in msg]):
-            success = False
-
-        results.append(dict(group_id=group_id, theorem_id=int(thm_id), error=error, messages=msg, verified=success))
-
-    res_df = pd.DataFrame.from_records(results).groupby("group_id").agg(list)
+    res_df = pd.DataFrame.from_records(all_results).groupby("group_id").agg(list)
     both = pd.merge(left=df, right=res_df, left_index=True, right_index=True, how="left")
 
     important_cols = [*df.columns, "error", "messages", "verified"]
