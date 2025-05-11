@@ -68,7 +68,7 @@ if __name__ == "__main__":
         for group_id, group in enumerate(df["formal_statement"])
         for thm_id, thm in enumerate(group)
     ]
-    logging.info("Formatted data: {len(records)} examples to verify.")
+    logging.info(f"Formatted data: {len(records)} examples to verify.")
 
     # Launch the query & wait for the response
     logging.info("Querying server...will take some time.")
