@@ -61,6 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--generations", type=int, default=1)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max_tokens", type=int, default=2048)
+    parser.add_argument("--top_p", type=int, default=0.95)
 
     args = parser.parse_args()
 
@@ -106,6 +107,7 @@ if __name__ == "__main__":
             n=args.generations,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
+            top_p=args.top_p,
         ),
     )
     # Do we need to do reranking here?
