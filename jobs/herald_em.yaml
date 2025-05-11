@@ -66,14 +66,14 @@ spec:
               mountPath: /dev/shm
           resources:
             limits:
-              memory: 128Gi
-              cpu: 4
+              memory: 64Gi
+              cpu: 2
               # nvidia.com/gpu: "2"
               nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
-              memory: 128Gi
-              cpu: 4
+              memory: 64Gi
+              cpu: 2
               # nvidia.com/gpu: "2"
               nvidia.com/a100: "4"
               ephemeral-storage: 50Gi

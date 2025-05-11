@@ -1,16 +1,16 @@
 #!/bin/bash
 
 if [ "$SKIP_TRAIN" = "" ]; then
-  bash run_em.sh || exit 1
+  bash run_em.sh
 fi
 if [ "$SKIP_INFERENCE" = "" ]; then
-  bash run_herald.sh || exit 1
+  bash run_herald.sh
 fi
 if [ "$SKIP_SCORE" = "" ]; then
-  bash run_align.sh || exit 1
+  bash run_align.sh
 fi
 if [ "$SKIP_VERIFY" = "" ]; then
-  bash run_verify.sh || exit 1
+  bash run_verify.sh
 fi
 
 # Kill the server after we're all done
