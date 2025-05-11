@@ -50,7 +50,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Boot up client
-    wait_for_server("127.0.0.1", 12332, timeout=500)
+    # wait_for_server("127.0.0.1", 12332, timeout=500)
+    time.sleep(60)  #  just sleep for a bit instead of waiting for server
     client = Lean4Client(base_url="http://127.0.0.1:12332")
 
     # Read & format input data
