@@ -24,7 +24,7 @@ def anonymize(formal_statement: str):
     return name
 
 
-def wait_for_server(host, port, timeout=500):
+def wait_for_server(host, port, timeout=30):
     start_time = time.time()
     while True:
         try:
@@ -50,16 +50,27 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Boot up client
-    wait_for_server(host="127.0.0.1", port=12332, timeout=60)
-    client = Lean4Client(base_url="http://127.0.0.1:12332")
+    start = time.time()
+    client = None
+    while time.time() - start < 500:
+        try:
+            client = Lean4Client(base_url="http://127.0.0.1:12332")
+        except Exception as e:
+            time.sleep(1)
+    if client is None:
+        raise Exception("Couldn't connect to the server in 500 seconds. Failing...")
 
     # Read & format input data
     df = pd.read_json(args.data)
     if args.num_samples > 0:
         df = df[: args.num_samples]
-    df["formal_statement"] = df["formal_statement"].apply(remove_informal_prefix)
+    df["formal_statement"] = df["formal_statement"].apply(lambda xs: [remove_informal_prefix(x) for x in xs])
 
-    records = [{"proof": anonymize(thm), "custom_id": str(idx)} for idx, thm in enumerate(df["formal_statement"])]
+    records = [
+        {"proof": anonymize(thm), "custom_id": f"{group_id}-{thm_id}"}
+        for group_id, group in enumerate(df["formal_statement"])
+        for thm_id, thm in enumerate(group)
+    ]
 
     # Launch the query & wait for the response
     print("Querying server...will take some time")
@@ -71,7 +82,7 @@ if __name__ == "__main__":
     # Parse the outputs
     results = []
     for thm_output in response["results"]:
-        thm_id = thm_output["custom_id"]
+        group_id, thm_id = map(int, thm_output["custom_id"].split('-')
 
         # Extract Lean errors
         error = thm_output["error"]

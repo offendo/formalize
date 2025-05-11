@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100-2
+  name: nilay-formalize-train-herald-em-a100-4
 spec:
   template:
     spec:
@@ -70,16 +70,16 @@ spec:
               mountPath: /dev/shm
           resources:
             limits:
-              memory: 64Gi
-              cpu: 2
+              memory: 32Gi
+              cpu: 4
               # nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
-              memory: 64Gi
-              cpu: 2
+              memory: 32Gi
+              cpu: 4
               # nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
         - name: verifier
           image: projectnumina/kimina-lean-server:1.0.0
