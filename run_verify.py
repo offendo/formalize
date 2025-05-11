@@ -55,6 +55,7 @@ if __name__ == "__main__":
     while time.time() - start < 500:
         try:
             client = Lean4Client(base_url="http://127.0.0.1:12332")
+            break
         except Exception as e:
             time.sleep(1)
     if client is None:
