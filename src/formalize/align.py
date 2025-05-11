@@ -565,6 +565,7 @@ def predict_herald(
     ] = 0.6,
     seed: Annotated[int, Option(help="random seed", rich_help_panel="Training Config")] = 1234,
     batch_size: Annotated[int, Option(help="batch size", rich_help_panel="Training Config")] = 4,
+    num_samples: Annotated[int, Option(help="num samples", rich_help_panel="Training Config")] = -1,
 ):
     model, tokenizer = load_model(
         model_name,
@@ -575,6 +576,7 @@ def predict_herald(
         unsloth=False,
         adapter_name=adapter_name,
     )
+    model = model.eval()
 
     # Everything here is herald specific stuff
     if dataset.endswith(".json"):
@@ -583,6 +585,8 @@ def predict_herald(
         df = load_from_disk(dataset).to_pandas()
 
     df = df[["informal_statement", "formal_statement", "name"]]
+    if num_samples > 0:
+        df = df[:num_samples]
 
     def split_off_name(text):
         splitted = text.split("**", maxsplit=2)
