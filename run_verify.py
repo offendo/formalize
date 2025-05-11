@@ -50,16 +50,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Boot up client
-    start = time.time()
-    client = None
-    while time.time() - start < 500:
-        try:
-            client = Lean4Client(base_url="http://127.0.0.1:12332")
-            break
-        except Exception as e:
-            time.sleep(1)
-    if client is None:
-        raise Exception("Couldn't connect to the server in 500 seconds. Failing...")
+    wait_for_server("127.0.0.1", 12332, timeout=500)
+    client = Lean4Client(base_url="http://127.0.0.1:12332")
 
     # Read & format input data
     df = pd.read_json(args.data)
@@ -83,7 +75,7 @@ if __name__ == "__main__":
     # Parse the outputs
     results = []
     for thm_output in response["results"]:
-        group_id, thm_id = map(int, thm_output["custom_id"].split('-'))
+        group_id, thm_id = map(int, thm_output["custom_id"].split("-"))
 
         # Extract Lean errors
         error = thm_output["error"]
@@ -101,7 +93,7 @@ if __name__ == "__main__":
 
         results.append(dict(group_id=group_id, theorem_id=int(thm_id), error=error, messages=msg, verified=success))
 
-    res_df = pd.DataFrame.from_records(results).groupby('group_id').agg(list)
+    res_df = pd.DataFrame.from_records(results).groupby("group_id").agg(list)
     both = pd.merge(left=df, right=res_df, left_index=True, right_index=True, how="left")
 
     important_cols = [*df.columns, "error", "messages", "verified"]
