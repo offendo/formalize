@@ -614,8 +614,8 @@ def predict_herald(
             examples.append({"index": example["name"], "input": nl, "output": fl})
         return examples
 
-    df["examples"] = df.apply(lambda row: format_example(row), axis=1).reset_index(names=["group_index"])
-    df = df.explode(["examples", "formal_statement"])
+    df["examples"] = df.apply(lambda row: format_example(row), axis=1)
+    df = df.explode(["examples", "formal_statement"]).reset_index(names=["group_index"])
     cols = pd.json_normalize(df["examples"])
     df = pd.merge(left=df, right=cols, left_index=True, right_index=True, how="right")
     df = df.drop("examples", axis=1)
