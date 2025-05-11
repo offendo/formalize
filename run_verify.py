@@ -6,6 +6,9 @@ import socket
 
 from argparse import ArgumentParser
 from lean_server.client import Lean4Client
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 def remove_informal_prefix(formal_statement: str) -> str:
@@ -50,7 +53,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Boot up client
+    wait_for_server("127.0.0.1", 12332, timeout=500)
     client = Lean4Client(base_url="http://127.0.0.1:12332")
+    logging.info("Connected to server.")
 
     # Read & format input data
     df = pd.read_json(args.data)
@@ -63,13 +68,14 @@ if __name__ == "__main__":
         for group_id, group in enumerate(df["formal_statement"])
         for thm_id, thm in enumerate(group)
     ]
+    logging.info("Formatted data: {len(records)} examples to verify.")
 
     # Launch the query & wait for the response
-    print("Querying server...will take some time")
+    logging.info("Querying server...will take some time.")
     tik = time.time()
     response = client.verify(records, timeout=30)
     tok = time.time()
-    print(f"Done in {tok-tik:0.2f}s!")
+    logging.info(f"Done in {tok-tik:0.2f}s!")
 
     # Parse the outputs
     results = []
@@ -97,3 +103,4 @@ if __name__ == "__main__":
 
     important_cols = [*df.columns, "error", "messages", "verified"]
     both[important_cols].to_json(args.output_json)
+    logging.info(f"Saved data to {args.output_json}")
