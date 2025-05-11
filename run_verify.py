@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # Parse the outputs
     results = []
     for thm_output in response["results"]:
-        group_id, thm_id = map(int, thm_output["custom_id"].split('-')
+        group_id, thm_id = map(int, thm_output["custom_id"].split('-'))
 
         # Extract Lean errors
         error = thm_output["error"]
@@ -99,10 +99,10 @@ if __name__ == "__main__":
         elif any([m["severity"] == "error" for m in msg]):
             success = False
 
-        results.append(dict(thm_id=int(thm_id), error=error, messages=msg, verified=success))
+        results.append(dict(group_id=group_id, theorem_id=int(thm_id), error=error, messages=msg, verified=success))
 
-    res_df = pd.DataFrame.from_records(results)
-    both = pd.merge(left=df, right=res_df, left_index=True, right_on="thm_id", how="left")
+    res_df = pd.DataFrame.from_records(results).groupby('group_id').agg(list)
+    both = pd.merge(left=df, right=res_df, left_index=True, right_index=True, how="left")
 
     important_cols = [*df.columns, "error", "messages", "verified"]
     both[important_cols].to_json(args.output_json)
