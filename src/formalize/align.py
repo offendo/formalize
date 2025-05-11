@@ -614,7 +614,7 @@ def predict_herald(
             examples.append({"index": example["name"], "input": nl, "output": fl})
         return examples
 
-    df["examples"] = df.apply(lambda row: format_example(row), axis=1)
+    df["examples"] = df.apply(lambda row: format_example(row), axis=1).reset_index(names=["group_index"])
     df = df.explode(["examples", "formal_statement"])
     cols = pd.json_normalize(df["examples"])
     df = pd.merge(left=df, right=cols, left_index=True, right_index=True, how="right")
@@ -643,7 +643,7 @@ def predict_herald(
     df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
     df["aligned"] = df["score"] > 0.5
 
-    df = df.groupby("informal_statement").agg(list)
+    df = df.groupby("informal_statement").agg(list).reset_index(names=["informal_statement"])
 
     df.to_json(output_json)
 

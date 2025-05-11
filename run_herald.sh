@@ -10,3 +10,5 @@ python scripts/run_herald.py \
   --generations $GENERATIONS \
   --temperature $TEMPERATURE \
   --top_p $TOP_P
+
+exit 0
