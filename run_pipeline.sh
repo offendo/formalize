@@ -1,5 +1,7 @@
 #!/bin/bash
 
+pip install -U pandas
+
 if [ "$SKIP_TRAIN" = "" ]; then
   bash run_em.sh
 fi
