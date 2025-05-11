@@ -44,6 +44,14 @@ spec:
               ephemeral-storage: 30Gi
         - name: verifier
           image: projectnumina/kimina-lean-server:1.0.0
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 12332
+            initialDelaySeconds: 5
+          env:
+            - name: "LEANSERVER_MAX_REPLS"
+              value: "10"
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
@@ -54,10 +62,10 @@ spec:
           resources:
             limits:
               memory: 128Gi
-              cpu: 32
+              cpu: 10
             requests:
               memory: 128Gi
-              cpu: 32
+              cpu: 10
       initContainers:
         - name: git-sync
           image: registry.k8s.io/git-sync/git-sync:v4.1.0

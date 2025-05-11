@@ -624,7 +624,9 @@ def predict_herald(
     collator = CustomCollator(tokenizer, mlm=False)
 
     hf_dataset = Dataset.from_list(df.to_dict(orient="records"))
-    hf_dataset = hf_dataset.map(lambda batch: tokenize_chat(batch, chat_marker, tokenizer), batched=True)
+    hf_dataset = hf_dataset.map(
+        lambda batch: tokenize_chat(batch, chat_marker, tokenizer), batched=True, remove_columns=[*df.columns]
+    )
 
     trainer = FastLanguageTrainer(
         model=model,
