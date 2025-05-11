@@ -10,6 +10,8 @@ if [ "$SKIP_SCORE" = "" ]; then
   bash run_align.sh
 fi
 if [ "$SKIP_VERIFY" = "" ]; then
+  ulimit -n 5000
+  ulimit -u unlimited
   bash run_verify.sh
 fi
 
