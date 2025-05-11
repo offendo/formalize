@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100-4
+  name: nilay-formalize-train-herald-em-a100-1
 spec:
   template:
     spec:
@@ -50,7 +50,7 @@ spec:
             - name: VERIFY_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_verified.json
             - name: ALIGN_BATCH_SIZE
-              value: "16"
+              value: "8"
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS
@@ -72,17 +72,20 @@ spec:
             limits:
               memory: 32Gi
               cpu: 4
-              # nvidia.com/gpu: "2"
-              nvidia.com/a100: "4"
+              #nvidia.com/gpu: "2"
+              nvidia.com/a100: "1"
               ephemeral-storage: 50Gi
             requests:
               memory: 32Gi
               cpu: 4
-              # nvidia.com/gpu: "2"
-              nvidia.com/a100: "4"
+              #nvidia.com/gpu: "2"
+              nvidia.com/a100: "1"
               ephemeral-storage: 50Gi
         - name: verifier
           image: projectnumina/kimina-lean-server:1.0.0
+          env:
+            - name: "LEANSERVER_MAX_REPLS"
+              value: "32"
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm

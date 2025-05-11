@@ -635,7 +635,7 @@ def predict_herald(
             logging_steps=10,
             bf16=torch.cuda.is_bf16_supported(),
             fp16=not torch.cuda.is_bf16_supported(),
-            auto_find_batch_size=True,
+            per_device_eval_batch_size=batch_size,
             report_to="wandb",  # Can use Weights & Biases
             output_dir=str(Path(output_json).parent),
             max_seq_length=max_tokens,
