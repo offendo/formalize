@@ -24,6 +24,7 @@ spec:
       #                   #   values: ["525", "530", "535"]
       imagePullSecrets:
         - name: nilay-ghcr-key
+      shareProcessNamespace: true
       containers:
         - name: train
           image: ghcr.io/offendo/formalize:latest

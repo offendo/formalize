@@ -18,6 +18,7 @@ spec:
                   - NVIDIA-A100-PCIE-40GB
   imagePullSecrets:
     - name: nilay-ghcr-key
+  shareProcessNamespace: true
   containers:
     - name: train
       image: ghcr.io/offendo/formalize:latest

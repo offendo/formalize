@@ -12,3 +12,6 @@ fi
 if [ "$SKIP_VERIFY" = "" ]; then
   bash run_verify.sh
 fi
+
+# Kill the server after we're all done
+kill -9 $(ps ax | grep "python -m server" | grep -v "grep" | head -n1 | awk '{ print $1 }')
