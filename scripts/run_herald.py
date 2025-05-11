@@ -66,7 +66,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if Path(args.output_path).exists():
-        raise ValueError(f"Output path {args.output_path} already exists. Need a new directory.")
+        Path(args.output_path).rename(args.output_path + '.old-backup')
+        print(f"Output path {args.output_path} already exists - moving to backup")
 
     translator = Translator(args.model, gpus=torch.cuda.device_count())
     llm = LLM(

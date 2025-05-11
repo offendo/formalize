@@ -36,7 +36,7 @@ spec:
             - name: SKIP_TRAIN
               value: "true"
             - name: MODEL
-              value: /volume/autoformalization/models/full_herald_iter3_positives
+              value: /volume/autoformalization/models/full_herald_iter3_positives/checkpoint-best
             - name: HERALD_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_output.json
             - name: ALIGN_INPUT
