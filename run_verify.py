@@ -1,6 +1,8 @@
+from asyncio import wait_for
 import re
 import time
 import pandas as pd
+import socket
 
 from argparse import ArgumentParser
 from lean_server.client import Lean4Client
@@ -19,6 +21,23 @@ def anonymize(formal_statement: str):
     name = re.sub(name_pattern, "theorem anonymous ", formal_statement, flags=re.DOTALL)
     return name
 
+def wait_for_server(host, port, timeout=30):
+    start_time = time.time()
+    while True:
+        try:
+            # Attempt to establish a connection
+            with socket.create_connection((host, port), timeout=1):
+                print(f"Server {host}:{port} is active.")
+                return True
+        except (socket.error, socket.timeout) as e:
+            # Check if timeout has been reached
+            if time.time() - start_time > timeout:
+                print(f"Timeout reached while waiting for server {host}:{port}.")
+                return False
+            # Wait before retrying
+            time.sleep(1)
+            print(f"Waiting for server {host}:{port}...")
+
 if __name__ == "__main__":
     parser = ArgumentParser("verifier")
     parser.add_argument("--data", type=str, required=True)
@@ -27,6 +46,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Boot up client
+    wait_for_server(host="127.0.0.1", port=12332, timeout=60)
     client = Lean4Client(base_url="http://127.0.0.1:12332")
 
     # Read & format input data

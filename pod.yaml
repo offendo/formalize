@@ -35,13 +35,14 @@ spec:
           mountPath: /etc/api-tokens
       resources:
         limits:
-          memory: 4Gi
+          memory: 8Gi
           cpu: 4
           # nvidia.com/gpu: "1"
+          nvidia.com/a100: "1"
         requests:
-          memory: 4Gi
+          memory: 8Gi
           cpu: 4
-          # nvidia.com/gpu: "1"
+          nvidia.com/a100: "1"
     - name: verifier
       image: projectnumina/kimina-lean-server:1.0.0
       volumeMounts:
@@ -53,10 +54,10 @@ spec:
           mountPath: /etc/api-tokens
       resources:
         limits:
-          memory: 28Gi
+          memory: 24Gi
           cpu: 1
         requests:
-          memory: 28Gi
+          memory: 24Gi
           cpu: 1
   initContainers:
     - name: git-sync
