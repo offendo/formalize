@@ -623,15 +623,33 @@ def predict_herald(
     chat_marker = tokenizer("<|im_start|>assistant", add_special_tokens=False).input_ids
     collator = CustomCollator(tokenizer, mlm=False)
 
+    hf_dataset = Dataset.from_list(df.to_dict(orient="records"))
+    hf_dataset = hf_dataset.map(lambda batch: tokenize_chat(batch, chat_marker, tokenizer), batched=True)
+
+    trainer = FastLanguageTrainer(
+        model=model,
+        processing_class=tokenizer,
+        args=SFTConfig(
+            logging_steps=10,
+            bf16=torch.cuda.is_bf16_supported(),
+            fp16=not torch.cuda.is_bf16_supported(),
+            auto_find_batch_size=True,
+            report_to="wandb",  # Can use Weights & Biases
+            output_dir=str(Path(output_json).parent),
+            max_seq_length=max_tokens,
+            remove_unused_columns=False,
+            include_for_metrics=["loss", "inputs"],
+            label_names=["label", "aligned"],
+        ),
+        data_collator=collator,
+        train_dataset=hf_dataset,
+        compute_metrics=compute_metrics,
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+    )
+
     certs = []
     sims = []
-    for batch in chunked(tqdm(df.to_dict(orient="records")), batch_size):
-        size = len(batch)
-        batch = {key: [batch[i][key] for i in range(size)] for key in batch[0].keys()}
-        batch = tokenize_chat(batch, chat_marker, tokenizer)
-        batch = [{key: val[i] for key, val in batch.items()} for i in range(size)]
-        batch = collator(batch)
-        batch = {key: val.to(model.device) for key, val in batch.items()}
+    for batch in trainer.get_test_dataloader(hf_dataset):
         with torch.no_grad():
             model_outputs = model(**batch, output_hidden_states=True)
             scores = compute_formal_align_score(batch, model_outputs)
