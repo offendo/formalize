@@ -658,14 +658,14 @@ def predict_herald(
     certs = []
     sims = []
     model = model.eval()
-    accelerator = Accelerator()
-    with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
+    distributed_state = PartialState()
+    model.to(distributed_state.device)
+    with distributed_state.split_between_processes(hf_dataset.to_list()) as inputs:
         dataloader = trainer.get_test_dataloader(inputs)
-        model, dataloader = accelerator.prepare(model, dataloader)
         pbar = tqdm(
             dataloader,
             total=math.ceil(len(inputs) / batch_size / torch.cuda.device_count()),
-            position=accelerator.process_index,
+            position=distributed_state.process_index,
         )
         for batch in pbar:
             with torch.no_grad():
