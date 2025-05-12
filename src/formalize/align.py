@@ -655,8 +655,7 @@ def predict_herald(
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
 
-    certs = []
-    sims = []
+    records = []
     model = model.eval()
     distributed_state = PartialState()
     model.to(distributed_state.device)
@@ -671,20 +670,17 @@ def predict_herald(
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
                 scores = compute_formal_align_score(batch, model_outputs)
-                certs.extend(scores["certainty_score"])
-                sims.extend(scores["similarity_score"])
+                records.append(
+                    {"certainty_score": scores["certainty_score"], "similarity_score": scores["similarity_score"]}
+                )
 
     # Accelerate gather
-    certs = [certs]
-    sims = [sims]
-    certs_gathered = gather(certs)
-    sims_gathered = gather(sims)
+    records = gather(records)
+    certs = [x.cpu().item() for x in collapse([rec["certainty_score"] for rec in records])]
+    sims = [x.cpu().item() for x in collapse([rec["similarity_score"] for rec in records])]
 
-    certs_flat = [c.cpu().item() for c in collapse(certs_gathered)]
-    sims_flat = [c.cpu().item() for c in collapse(sims_gathered)]
-
-    df["certainty_score"] = certs_flat
-    df["similarity_score"] = sims_flat
+    df["certainty_score"] = certs
+    df["similarity_score"] = sims
     df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
     df["aligned"] = df["score"] > 0.5
 
