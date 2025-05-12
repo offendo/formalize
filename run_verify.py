@@ -82,7 +82,7 @@ if __name__ == "__main__":
     pbar = tqdm(records, desc="Querying...")
     for batch in chunked(pbar, n=256):
         try:
-            response = client.verify(records, timeout=30)
+            response = client.verify(batch, timeout=30)
 
             # Parse the outputs
             results = []
