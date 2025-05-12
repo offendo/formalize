@@ -1,11 +1,10 @@
-from asyncio import wait_for
 import re
 import time
-from more_itertools import chunked
 import pandas as pd
 import socket
-from tqdm import tqdm
 
+from more_itertools import chunked
+from tqdm import tqdm
 from argparse import ArgumentParser
 from lean_server.client import Lean4Client
 import logging
