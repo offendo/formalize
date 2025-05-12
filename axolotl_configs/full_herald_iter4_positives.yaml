@@ -7,7 +7,7 @@ plugins:
   - axolotl.integrations.liger.LigerPlugin
 
 ## Deepspeed
-deepspeed: deepspeed_configs/zero2.json
+deepspeed: deepspeed_configs/zero1.json
 
 ## CCE
 cut_cross_entropy: false # doesn't work with qwen
