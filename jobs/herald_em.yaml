@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100-4
+  name: nilay-formalize-train-herald-em-a100-4x
 spec:
   template:
     spec:
@@ -50,7 +50,7 @@ spec:
             - name: VERIFY_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_verified.json
             - name: ALIGN_BATCH_SIZE
-              value: "8"
+              value: "4"
             - name: NUM_SAMPLES
               value: "-1"
             - name: GENERATIONS

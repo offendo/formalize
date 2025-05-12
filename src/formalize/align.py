@@ -5,6 +5,7 @@ import os
 import pickle
 import string
 from dataclasses import dataclass
+
 from pathlib import Path
 from pprint import pprint
 from typing import Annotated, Optional
@@ -15,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import typer
 import accelerate
+from accelerate import Accelerator, PartialState
 from more_itertools import chunked
 from tqdm import tqdm
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
@@ -29,7 +31,6 @@ from transformers import (
     EvalPrediction,
     PreTrainedTokenizer,
 )
-from accelerate import Accelerator
 from transformers.modeling_outputs import CausalLMOutput
 from transformers.utils import ModelOutput
 from trl import SFTConfig, SFTTrainer
@@ -655,18 +656,28 @@ def predict_herald(
     certs = []
     sims = []
     model = model.eval()
-    dataloader = trainer.get_test_dataloader(hf_dataset)
     accelerator = Accelerator()
-    model, dataloader = accelerator.prepare(model, dataloader)
-    for batch in tqdm(dataloader, total=len(hf_dataset)):
-        with torch.no_grad():
-            model_outputs = model(**batch, output_hidden_states=True)
-            scores = compute_formal_align_score(batch, model_outputs)
-            certs.extend(scores["certainty_score"].tolist())
-            sims.extend(scores["similarity_score"].tolist())
+    with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
+        dataloader = trainer.get_test_dataloader(inputs)
+        model, dataloader = accelerator.prepare(model, dataloader)
+        for batch in tqdm(dataloader, total=len(hf_dataset)):
+            with torch.no_grad():
+                model_outputs = model(**batch, output_hidden_states=True)
+                scores = compute_formal_align_score(batch, model_outputs)
+                certs.extend(scores["certainty_score"])
+                sims.extend(scores["similarity_score"])
 
-    df["certainty_score"] = certs
-    df["similarity_score"] = sims
+    # Accelerate gather
+    certs = [certs]
+    sims = [sims]
+    certs_gathered = accelerator.gather(certs)
+    sims_gathered = accelerator.gather(sims)
+
+    certs_flat = [c for cert in certs_gathered for c in cert]
+    sims_flat = [c for sim in sims_gathered for c in sim]
+
+    df["certainty_score"] = certs_flat
+    df["similarity_score"] = sims_flat
     df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
     df["aligned"] = df["score"] > 0.5
 
