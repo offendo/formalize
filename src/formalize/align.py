@@ -19,7 +19,7 @@ import typer
 import accelerate
 from accelerate import Accelerator, PartialState
 from accelerate.utils import gather
-from more_itertools import chunked
+from more_itertools import chunked, collapse
 from tqdm import tqdm
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
@@ -675,11 +675,13 @@ def predict_herald(
                 sims.extend(scores["similarity_score"])
 
     # Accelerate gather
+    certs = [certs]
+    sims = [sims]
     certs_gathered = gather(certs)
     sims_gathered = gather(sims)
 
-    certs_flat = [c.cpu().item() for cert in certs_gathered for c in cert]
-    sims_flat = [c.cpu().item() for sim in sims_gathered for c in sim]
+    certs_flat = [c.cpu().item() for c in collapse(certs_gathered)]
+    sims_flat = [c.cpu().item() for c in collapse(sims_gathered)]
 
     df["certainty_score"] = certs_flat
     df["similarity_score"] = sims_flat
