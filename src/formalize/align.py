@@ -662,7 +662,11 @@ def predict_herald(
     with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
         dataloader = trainer.get_test_dataloader(inputs)
         model, dataloader = accelerator.prepare(model, dataloader)
-        pbar = tqdm(dataloader, total=math.ceil(len(inputs) / batch_size), position=accelerator.process_index)
+        pbar = tqdm(
+            dataloader,
+            total=math.ceil(len(inputs) / batch_size / torch.cuda.device_count()),
+            position=accelerator.process_index,
+        )
         for batch in pbar:
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
