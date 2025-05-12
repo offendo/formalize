@@ -79,7 +79,7 @@ if __name__ == "__main__":
     all_results = []
     failed = 0
     pbar = tqdm(records, desc="Querying...")
-    for batch in chunked(pbar, n=256):
+    for batch in chunked(pbar, n=8_192):
         try:
             response = client.verify(batch, timeout=30)
 
