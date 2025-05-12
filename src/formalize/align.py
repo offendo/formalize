@@ -4,6 +4,7 @@ import json
 import os
 import pickle
 import string
+import math
 from dataclasses import dataclass
 
 from pathlib import Path
@@ -661,12 +662,13 @@ def predict_herald(
     with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
         dataloader = trainer.get_test_dataloader(inputs)
         model, dataloader = accelerator.prepare(model, dataloader)
-        for batch in tqdm(dataloader, total=len(inputs), position=accelerator.process_index):
+        pbar = tqdm(dataloader, total=math.ceil(len(inputs) / batch_size), position=accelerator.process_index)
+        for batch in pbar:
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
                 scores = compute_formal_align_score(batch, model_outputs)
-                certs.extend(scores["certainty_score"])
-                sims.extend(scores["similarity_score"])
+                certs.extend(scores["certainty_score"].tolist())
+                sims.extend(scores["similarity_score"].tolist())
 
     # Accelerate gather
     certs = [certs]
@@ -674,8 +676,8 @@ def predict_herald(
     certs_gathered = gather(certs)
     sims_gathered = gather(sims)
 
-    certs_flat = [c for cert in certs_gathered for c in cert.cpu().tolist()]
-    sims_flat = [c for sim in sims_gathered for c in sim.cpu().tolist()]
+    certs_flat = [c for cert in certs_gathered for c in cert]
+    sims_flat = [c for sim in sims_gathered for c in sim]
 
     df["certainty_score"] = certs_flat
     df["similarity_score"] = sims_flat
