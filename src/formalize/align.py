@@ -676,20 +676,29 @@ def predict_herald(
 
     # Accelerate gather
     records = gather(records)
-    certs = [x.cpu().item() for x in collapse([rec["certainty_score"] for rec in records])]
-    sims = [x.cpu().item() for x in collapse([rec["similarity_score"] for rec in records])]
+    if distributed_state.is_main_process:
+        certs = [x.cpu().item() for x in collapse([rec["certainty_score"] for rec in records])]
+        sims = [x.cpu().item() for x in collapse([rec["similarity_score"] for rec in records])]
 
-    df["certainty_score"] = certs
-    df["similarity_score"] = sims
-    df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
-    df["aligned"] = df["score"] > 0.5
+        df["certainty_score"] = certs
+        df["similarity_score"] = sims
+        df["score"] = (df["certainty_score"] + df["similarity_score"]) / 2
+        df["aligned"] = df["score"] > 0.5
 
-    df = df.groupby("informal_statement").agg(list).reset_index(names=["informal_statement"])
-    df = df[
-        ["informal_statement", "name", "formal_statement", "certainty_score", "similarity_score", "score", "aligned"]
-    ]
+        df = df.groupby("informal_statement").agg(list).reset_index(names=["informal_statement"])
+        df = df[
+            [
+                "informal_statement",
+                "name",
+                "formal_statement",
+                "certainty_score",
+                "similarity_score",
+                "score",
+                "aligned",
+            ]
+        ]
 
-    df.to_json(output_json)
+        df.to_json(output_json)
 
 
 if __name__ == "__main__":
