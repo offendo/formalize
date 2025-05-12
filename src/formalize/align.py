@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import typer
 import accelerate
 from accelerate import Accelerator, PartialState
+from accelerate.utils import gather
 from more_itertools import chunked
 from tqdm import tqdm
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
@@ -660,7 +661,7 @@ def predict_herald(
     with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
         dataloader = trainer.get_test_dataloader(inputs)
         model, dataloader = accelerator.prepare(model, dataloader)
-        for batch in tqdm(dataloader, total=len(hf_dataset)):
+        for batch in tqdm(dataloader, total=len(inputs), position=accelerator.):
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
                 scores = compute_formal_align_score(batch, model_outputs)
@@ -670,11 +671,11 @@ def predict_herald(
     # Accelerate gather
     certs = [certs]
     sims = [sims]
-    certs_gathered = accelerator.gather(certs)
-    sims_gathered = accelerator.gather(sims)
+    certs_gathered = gather(certs)
+    sims_gathered = gather(sims)
 
-    certs_flat = [c for cert in certs_gathered for c in cert]
-    sims_flat = [c for sim in sims_gathered for c in sim]
+    certs_flat = [c for cert in certs_gathered for c in cert.cpu().tolist()]
+    sims_flat = [c for sim in sims_gathered for c in sim.cpu().tolist()]
 
     df["certainty_score"] = certs_flat
     df["similarity_score"] = sims_flat
