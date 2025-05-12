@@ -667,8 +667,8 @@ def predict_herald(
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
                 scores = compute_formal_align_score(batch, model_outputs)
-                certs.extend(scores["certainty_score"].tolist())
-                sims.extend(scores["similarity_score"].tolist())
+                certs.extend(scores["certainty_score"].cpu())
+                sims.extend(scores["similarity_score"].cpu())
 
     # Accelerate gather
     certs = [certs]
@@ -676,8 +676,8 @@ def predict_herald(
     certs_gathered = gather(certs)
     sims_gathered = gather(sims)
 
-    certs_flat = [c for cert in certs_gathered for c in cert]
-    sims_flat = [c for sim in sims_gathered for c in sim]
+    certs_flat = [c.item() for cert in certs_gathered for c in cert]
+    sims_flat = [c.item() for sim in sims_gathered for c in sim]
 
     df["certainty_score"] = certs_flat
     df["similarity_score"] = sims_flat
