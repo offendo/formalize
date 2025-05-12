@@ -58,6 +58,7 @@ def load_model(
     adapter_name: str | None = None,
     debug: bool = False,
     quantize: bool = False,
+    device_map: str | None = "auto",
 ):
     if unsloth and debug:
         raise NotImplementedError("Can't debug in unsloth mode because the model sizes are fixed.")
@@ -119,8 +120,8 @@ def load_model(
             load_in_4bit=lora_rank != -1,  # if we're using LoRA, load in 4 bit mode
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,
-            device_map="auto",
             quantization_config=quantization_config,
+            device_map=device_map,
         )
         if adapter_name:
             model = PeftModel.from_pretrained(model, adapter_name, is_trainable=False)
@@ -577,6 +578,7 @@ def predict_herald(
         seed=seed,
         unsloth=False,
         adapter_name=adapter_name,
+        device_map=None,
     )
 
     # Everything here is herald specific stuff
