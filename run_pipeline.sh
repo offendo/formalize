@@ -1,6 +1,7 @@
 #!/bin/bash
 
 if [ "$SKIP_TRAIN" = "" ]; then
+  pip install mpi4py
   bash run_em.sh
 fi
 if [ "$SKIP_INFERENCE" = "" ]; then

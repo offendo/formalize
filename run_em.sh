@@ -9,5 +9,5 @@ axolotl train $CONFIG
 echo "finished training"
 
 # merge the lora weights
-axolotl merge-lora $CONFIG
-echo "merged"
+# axolotl merge-lora $CONFIG
+# echo "merged"
