@@ -25,7 +25,7 @@ spec:
             - name: VERIFY_OUTPUT
               value: /volume/autoformalization/full_herald_iter3_positives_verified.json
             - name: VERIFY_NUM_SAMPLES
-              value: 1024
+              value: "1024"
           volumeMounts:
             - name: git-repo
               mountPath: /app
@@ -54,6 +54,8 @@ spec:
           env:
             - name: "LEANSERVER_MAX_REPLS"
               value: "10"
+            - name: "LEANSERVER_MAX_CONCURRENT_REQUESTS"
+              value: "32"
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm

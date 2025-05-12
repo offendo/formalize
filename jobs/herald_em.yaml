@@ -59,6 +59,8 @@ spec:
               value: "1.0"
             - name: TOP_P
               value: "0.95"
+            - name: VERIFY_NUM_SAMPLES
+              value: "-1"
           volumeMounts:
             - name: git-repo
               mountPath: /app
