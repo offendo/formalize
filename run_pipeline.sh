@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ "$SKIP_TRAIN" = "" ]; then
-  pip install mpi4py
+  conda install -y mpi4py
   bash run_em.sh
 fi
 if [ "$SKIP_INFERENCE" = "" ]; then
