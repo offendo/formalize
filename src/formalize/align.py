@@ -661,7 +661,7 @@ def predict_herald(
     with accelerator.split_between_processes(hf_dataset.to_list()) as inputs:
         dataloader = trainer.get_test_dataloader(inputs)
         model, dataloader = accelerator.prepare(model, dataloader)
-        for batch in tqdm(dataloader, total=len(inputs), position=accelerator.):
+        for batch in tqdm(dataloader, total=len(inputs), position=accelerator.process_index):
             with torch.no_grad():
                 model_outputs = model(**batch, output_hidden_states=True)
                 scores = compute_formal_align_score(batch, model_outputs)
