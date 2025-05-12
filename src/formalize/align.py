@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import typer
+import accelerate
 from more_itertools import chunked
 from tqdm import tqdm
 from datasets import Dataset, DatasetDict, concatenate_datasets, load_dataset, load_from_disk
@@ -28,6 +29,7 @@ from transformers import (
     EvalPrediction,
     PreTrainedTokenizer,
 )
+from accelerate import Accelerator
 from transformers.modeling_outputs import CausalLMOutput
 from transformers.utils import ModelOutput
 from trl import SFTConfig, SFTTrainer
@@ -576,7 +578,6 @@ def predict_herald(
         unsloth=False,
         adapter_name=adapter_name,
     )
-    model = model.eval()
 
     # Everything here is herald specific stuff
     if dataset.endswith(".json"):
@@ -651,7 +652,11 @@ def predict_herald(
 
     certs = []
     sims = []
-    for batch in trainer.get_test_dataloader(hf_dataset):
+    model = model.eval()
+    dataloader = trainer.get_test_dataloader(hf_dataset)
+    accelerator = Accelerator()
+    model, dataloader = accelerator.prepare(model, dataloader)
+    for batch in tqdm(dataloader, total=len(hf_dataset)):
         with torch.no_grad():
             model_outputs = model(**batch, output_hidden_states=True)
             scores = compute_formal_align_score(batch, model_outputs)
