@@ -675,8 +675,6 @@ def predict_herald(
                 sims.extend(scores["similarity_score"])
 
     # Accelerate gather
-    certs = [certs]
-    sims = [sims]
     certs_gathered = gather(certs)
     sims_gathered = gather(sims)
 
