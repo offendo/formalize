@@ -685,6 +685,9 @@ def predict_herald(
     df["aligned"] = df["score"] > 0.5
 
     df = df.groupby("informal_statement").agg(list).reset_index(names=["informal_statement"])
+    df = df[
+        ["informal_statement", "name", "formal_statement", "certainty_score", "similarity_score", "score", "aligned"]
+    ]
 
     df.to_json(output_json)
 
