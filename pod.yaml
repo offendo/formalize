@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nilay-formalize-test-pod-1
+  name: nilay-formalize-test-pod
 spec:
   imagePullSecrets:
     - name: nilay-ghcr-key
@@ -25,11 +25,11 @@ spec:
           memory: 32Gi
           cpu: 4
           # nvidia.com/gpu: "1"
-          nvidia.com/a100: "1"
+          nvidia.com/a100: "2"
         requests:
           memory: 32Gi
           cpu: 4
-          nvidia.com/a100: "1"
+          nvidia.com/a100: "2"
           #   - name: verifier
           #     image: projectnumina/kimina-lean-server:1.0.0
           #     volumeMounts:
