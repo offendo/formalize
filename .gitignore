@@ -14,3 +14,9 @@ data/
 math_atlas.json
 mathatlas
 math_atlas_entities_with_refs.json
+outputs/
+plots/
+lean_server/
+math_atlas.tar.gz
+herald_translator/
+paper/
