@@ -615,9 +615,10 @@ def predict_herald(
         if not isinstance(statements, list):
             statements = [statements]
         examples = []
-        for stm in statements:
+        for i, stm in enumerate(statements):
             fl = stm.split("-/")[-1].split("sorry")[0].strip()
-            examples.append({"index": example["name"], "input": nl, "output": fl})
+            fl_filtered = '\n'.join([line for line in fl.splitlines() if not(line.startswith('import') or line.startswith('open'))]).strip()
+            examples.append({"index": example["name"][i], "input": nl, "output": fl_filtered})
         return examples
 
     df["examples"] = df.apply(lambda row: format_example(row), axis=1)
