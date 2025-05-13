@@ -114,6 +114,7 @@ if __name__ == "__main__":
     parser = ArgumentParser("inference")
 
     parser.add_argument("--model", type=str, required=True)
+    parser.add_argument("--model_type", type=str, required=True, choices=['kimina', 'herald'])
     parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--output_path", type=str, required=True)
     parser.add_argument("--num_samples", type=int, default=-1)
