@@ -1,7 +1,9 @@
 #!/bin/bash
 
+conda install -y mpi4py
+pip install -U deepspeed
+
 if [ "$SKIP_TRAIN" = "" ]; then
-  conda install -y mpi4py
   bash run_em.sh
 fi
 if [ "$SKIP_INFERENCE" = "" ]; then
