@@ -1,27 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100-4x
+  name: nilay-formalize-inference
 spec:
   template:
     spec:
-      # affinity:
-      #   nodeAffinity:
-      #     requiredDuringSchedulingIgnoredDuringExecution:
-      #       nodeSelectorTerms:
-      #         - matchExpressions:
-      #             - key: nvidia.com/gpu.product
-      #               operator: In
-      #               values:
-      #                 - NVIDIA-GeForce-RTX-3090
-      #                 - NVIDIA-GeForce-RTX-4090
-      #                 - NVIDIA-A100-SXM4-80GB
-      #                 - NVIDIA-A100-80GB-PCIe
-      #                 - NVIDIA-A100-80GB-PCIe
-      #                 - NVIDIA-A40
-      #                   # - key: nvidia.com/cuda.driver.major
-      #                   #   operator: In
-      #                   #   values: ["525", "530", "535"]
       imagePullSecrets:
         - name: nilay-ghcr-key
       shareProcessNamespace: true
@@ -31,22 +14,18 @@ spec:
           command: ["bash", "run_pipeline.sh"]
           workingDir: /app/formalize
           env:
-            - name: CONFIG
-              value: "axolotl_configs/full_herald_iter4_positives.yaml"
+            - name: SKIP_TRAIN
+              value: "true"
             - name: SKIP_VERIFY
               value: "true"
             - name: MODEL
-              value: /volume/autoformalization/models/full_herald_iter4_positives/checkpoint-best
+              value: "FrenzyMath/Herald_translator"
             - name: HERALD_OUTPUT
-              value: /volume/autoformalization/full_herald_iter4_positives_output.json
+              value: /volume/autoformalization/herald_base_output.json
             - name: ALIGN_INPUT
-              value: /volume/autoformalization/full_herald_iter4_positives_output.json
+              value: /volume/autoformalization/herald_base_output.json
             - name: ALIGN_OUTPUT
-              value: /volume/autoformalization/full_herald_iter4_positives_aligned.json
-            - name: VERIFY_INPUT
-              value: /volume/autoformalization/full_herald_iter4_positives_aligned.json
-            - name: VERIFY_OUTPUT
-              value: /volume/autoformalization/full_herald_iter4_positives_verified.json
+              value: /volume/autoformalization/herald_base_aligned.json
             - name: ALIGN_BATCH_SIZE
               value: "4"
             - name: NUM_SAMPLES
@@ -73,13 +52,13 @@ spec:
               memory: 256Gi
               cpu: 4
               #nvidia.com/gpu: "2"
-              nvidia.com/a100: "4"
+              nvidia.com/a100: "1"
               ephemeral-storage: 50Gi
             requests:
               memory: 256Gi
               cpu: 4
               #nvidia.com/gpu: "2"
-              nvidia.com/a100: "4"
+              nvidia.com/a100: "1"
               ephemeral-storage: 50Gi
               # - name: verifier
               #   image: projectnumina/kimina-lean-server:1.0.0
