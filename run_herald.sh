@@ -4,6 +4,7 @@ huggingface-cli login --token $(cat /etc/api-tokens/hf-token)
 
 python scripts/run_herald.py \
   --model $MODEL \
+  --model_type $MODEL_TYPE \
   --dataset "offendo/math-atlas-titled-theorems" \
   --output_path $HERALD_OUTPUT \
   --num_samples $NUM_SAMPLES  \
