@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-inference
+  name: nilay-formalize-inference-iter4
 spec:
   template:
     spec:
@@ -18,14 +18,16 @@ spec:
               value: "true"
             - name: SKIP_VERIFY
               value: "true"
+            - name: MODEL_TYPE
+              value: "herald"
             - name: MODEL
-              value: "AI-MO/Kimina-Autoformalizer-7B"
+              value: /volume/autoformalization/models/full_herald_iter4_positives/
             - name: HERALD_OUTPUT
-              value: /volume/autoformalization/kimina_base_output.json
+              value: /volume/autoformalization/full_herald_iter4_positives_output.json
             - name: ALIGN_INPUT
-              value: /volume/autoformalization/kimina_base_output.json
+              value: /volume/autoformalization/full_herald_iter4_positives_output.json
             - name: ALIGN_OUTPUT
-              value: /volume/autoformalization/kimina_base_aligned.json
+              value: /volume/autoformalization/full_herald_iter4_positives_aligned.json
             - name: ALIGN_BATCH_SIZE
               value: "4"
             - name: NUM_SAMPLES
@@ -52,13 +54,13 @@ spec:
               memory: 256Gi
               cpu: 4
               #nvidia.com/gpu: "2"
-              nvidia.com/a100: "1"
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
             requests:
               memory: 256Gi
               cpu: 4
               #nvidia.com/gpu: "2"
-              nvidia.com/a100: "1"
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
               # - name: verifier
               #   image: projectnumina/kimina-lean-server:1.0.0

@@ -25,11 +25,11 @@ spec:
           memory: 32Gi
           cpu: 4
           # nvidia.com/gpu: "1"
-          nvidia.com/a100: "2"
+          nvidia.com/a100: "0"
         requests:
           memory: 32Gi
           cpu: 4
-          nvidia.com/a100: "2"
+          nvidia.com/a100: "0"
           #   - name: verifier
           #     image: projectnumina/kimina-lean-server:1.0.0
           #     volumeMounts:

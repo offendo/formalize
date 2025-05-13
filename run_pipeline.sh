@@ -16,7 +16,7 @@ if [ "$SKIP_VERIFY" = "" ]; then
   ulimit -n 5000
   ulimit -u unlimited
   bash run_verify.sh
+  # Kill the server after we're all done
+  kill -9 $(ps ax | grep "python -m server" | grep -v "grep" | head -n1 | awk '{ print $1 }')
 fi
 
-# Kill the server after we're all done
-kill -9 $(ps ax | grep "python -m server" | grep -v "grep" | head -n1 | awk '{ print $1 }')
