@@ -1,0 +1,73 @@
+base_model: "AI-MO/Kimina-Autoformalizer-7B"
+
+# Performance optimizations
+# =========================
+plugins:
+  # - axolotl.integrations.cut_cross_entropy.CutCrossEntropyPlugin
+  - axolotl.integrations.liger.LigerPlugin
+
+## Deepspeed
+deepspeed: deepspeed_configs/zero1.json
+
+## CCE
+cut_cross_entropy: false # doesn't work with qwen
+
+## Liger
+liger_rope: true
+liger_rms_norm: true
+liger_glu_activation: true
+liger_layer_norm: true
+liger_fused_linear_cross_entropy: true
+
+# Training settings
+# =================
+## Training
+micro_batch_size: 4
+auto_find_batch_size: true
+gradient_accumulation_steps: 2
+num_epochs: 3
+learning_rate: 0.0001
+warmup_ratio: 0.05
+lr_scheduler: cosine
+optimizer: paged_adamw_8bit
+output_dir: /volume/autoformalization/models/kimina-informalization
+
+## Logging and saving
+logging_steps: 10
+eval_steps: 1000
+eval_strategy: # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
+save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
+save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
+save_total_limit: 3 # Checkpoints saved at a time
+wandb_project: auto-informalization # Your wandb project name
+wandb_name: kimina-informalization-7b # Set the name of your wandb run
+
+# Metrics
+do_causal_lm_eval: true # Whether to run causal language model evaluation for metrics in `eval_causal_lm_metrics`.
+eval_causal_lm_metrics: ["sacrebleu", "ter", "perplexity"] # HF evaluate metrics used during evaluation. Default is ["sacrebleu", "comet", "ter", "chrf", "perplexity"]
+
+## Performance
+bf16: true
+flash_attention: false
+gradient_checkpointing: true
+
+# Dataset
+# =======
+hf_use_auth_token: true
+sequence_len: 2048
+dataset_prepared_path: dataset
+dataset_processes: 1
+datasets:
+  - path: offendo/mathlib_informal_v4.16.0_formatted
+    type: chat_template
+    split: train
+    roles_to_train: ["assistant"]
+    chat_template: tokenizer_default
+    field_messages: conversation
+
+test_datasets:
+  - path: offendo/mathlib_informal_v4.16.0_formatted
+    type: chat_template
+    split: test
+    chat_template: tokenizer_default
+    field_messages: conversation

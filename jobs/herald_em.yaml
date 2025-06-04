@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: nilay-formalize-train-herald-em-a100-2x
+  name: nilay-formalize-train-herald-em-a100-4x
 spec:
   template:
     spec:
@@ -19,7 +19,9 @@ spec:
             - name: SKIP_VERIFY
               value: "true"
             - name: MODEL
-              value: /volume/autoformalization/models/full_herald_iter5_positives/checkpoint-best
+              value: /volume/autoformalization/models/full_herald_iter5_positives/
+            - name: MODEL_TYPE
+              value: "herald"
             - name: HERALD_OUTPUT
               value: /volume/autoformalization/full_herald_iter5_positives_output.json
             - name: ALIGN_INPUT
@@ -53,16 +55,14 @@ spec:
               mountPath: /dev/shm
           resources:
             limits:
-              memory: 128Gi
-              cpu: 4
-              #nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              memory: 256Gi
+              cpu: 2
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
-              memory: 128Gi
-              cpu: 4
-              #nvidia.com/gpu: "2"
-              nvidia.com/a100: "2"
+              memory: 256Gi
+              cpu: 2
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
               # - name: verifier
               #   image: projectnumina/kimina-lean-server:1.0.0
