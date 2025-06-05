@@ -49,6 +49,7 @@ eval_causal_lm_metrics: ["sacrebleu", "ter", "perplexity"] # HF evaluate metrics
 ## Performance
 bf16: true
 flash_attention: false
+xformers_attention: false
 gradient_checkpointing: true
 
 # Dataset
