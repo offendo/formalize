@@ -35,12 +35,12 @@ spec:
             limits:
               memory: 256Gi
               cpu: 2
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
             requests:
               memory: 256Gi
               cpu: 2
-              nvidia.com/a100: "2"
+              nvidia.com/a100: "4"
               ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync
