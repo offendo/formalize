@@ -25,7 +25,7 @@ liger_fused_linear_cross_entropy: true
 micro_batch_size: 4
 auto_find_batch_size: true
 gradient_accumulation_steps: 2
-num_epochs: 3
+num_epochs: 2
 learning_rate: 0.0001
 warmup_ratio: 0.05
 lr_scheduler: cosine
@@ -34,8 +34,8 @@ output_dir: /volume/autoformalization/models/kimina-informalization
 
 ## Logging and saving
 logging_steps: 10
-eval_steps: 1000
-eval_strategy: # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
+#eval_steps: 1000
+eval_strategy: "no" # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
 save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
 save_steps: 1000 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
 save_total_limit: 3 # Checkpoints saved at a time
@@ -65,9 +65,9 @@ datasets:
     chat_template: tokenizer_default
     field_messages: conversation
 
-test_datasets:
-  - path: offendo/mathlib_informal_v4.16.0_formatted
-    type: chat_template
-    split: test
-    chat_template: tokenizer_default
-    field_messages: conversation
+# test_datasets:
+#   - path: offendo/mathlib_informal_v4.16.0_formatted
+#     type: chat_template
+#     split: test
+#     chat_template: tokenizer_default
+#     field_messages: conversation
