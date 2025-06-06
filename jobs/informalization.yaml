@@ -5,6 +5,14 @@ metadata:
 spec:
   template:
     spec:
+      #affinity:
+      #  nodeAffinity:
+      #    requiredDuringSchedulingIgnoredDuringExecution:
+      #      nodeSelectorTerms:
+      #        - matchExpressions:
+      #            - key: nvidia.com/cuda.version
+      #              operator: In
+      #              values: ["12.4"]
       imagePullSecrets:
         - name: nilay-ghcr-key
       shareProcessNamespace: true
@@ -34,13 +42,13 @@ spec:
           resources:
             limits:
               memory: 256Gi
-              cpu: 2
-              nvidia.com/a100: "4"
+              cpu: 16
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
             requests:
               memory: 256Gi
-              cpu: 2
-              nvidia.com/a100: "4"
+              cpu: 16
+              nvidia.com/a100: "2"
               ephemeral-storage: 50Gi
       initContainers:
         - name: git-sync

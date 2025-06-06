@@ -37,7 +37,7 @@ logging_steps: 10
 eval_steps: 1000
 eval_strategy: # Set to `"no"` to skip evaluation, `"epoch"` at end of each epoch, leave empty to infer from `eval_steps`.
 save_strategy: # Set to `"no"` to skip checkpoint saves, `"epoch"` at end of each epoch, `"best"` when better result is achieved, leave empty to infer from `save_steps`.
-save_steps: 100 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
+save_steps: 1000 # Leave empty to save at each epoch, integer for every N steps. float for fraction of total steps
 save_total_limit: 3 # Checkpoints saved at a time
 wandb_project: auto-informalization # Your wandb project name
 wandb_name: kimina-informalization-7b # Set the name of your wandb run
@@ -57,7 +57,6 @@ gradient_checkpointing: true
 hf_use_auth_token: true
 sequence_len: 2048
 dataset_prepared_path: dataset
-dataset_processes: 1
 datasets:
   - path: offendo/mathlib_informal_v4.16.0_formatted
     type: chat_template
